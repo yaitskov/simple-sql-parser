@@ -730,7 +730,7 @@ all the scalar expressions which start with an identifier
 >     multisetSetFunction =
 >         App [Name Nothing "set"] . (:[]) <$>
 >         (try (keyword_ "set" *> openParen)
->          *> scalarExpr <* closeParen)
+>          *> scalarExpr <* closeParen) <*> pure Nothing
 >     keywordFunction =
 >         let makeKeywordFunction x = if map toLower x `elem` keywordFunctionNames
 >                                     then return [Name Nothing x]
@@ -942,8 +942,9 @@ together.
 >     openParen *> choice
 >     [duplicates
 >      <**> (commaSep1 scalarExpr
->            <**> (((option [] orderBy) <* closeParen)
->                  <**> (optionMaybe afilter <$$$$$> AggregateApp)))
+>            <**> ((((option [] orderBy) <* closeParen)
+>               <**> (respectNulls
+>                  <**> (optionMaybe afilter <$$$$$$> AggregateApp)))))
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
 >     -- handle window query with IGNORE/RESPECT NULLS
@@ -952,20 +953,25 @@ together.
 >         nr <- respectNulls
 >         _ <- closeParen
 >         window nr <*> pure args
+>     , try $ do --App with IGNORE NULLS (aggregate functions are not always parsed to AggregateApp)
+>         args <- commaSep1 scalarExpr
+>         nr <- respectNulls
+>         _ <- closeParen
+>         pure ((flip3 App) nr args)
 >     ,commaSep1 scalarExpr
->      <**> choice
+>        <**> choice
 >           [closeParen *> choice
 >                          [withinGroup
 >                          ,(Just <$> afilter) <$$$> aggAppWithoutDupeOrd
->                          ,pure (flip App)]
+>                          ,pure ((flip3 App) Nothing)]
 >           ,orderBy <* closeParen
 >            <**> (optionMaybe afilter <$$$$> aggAppWithoutDupe)]
 >      -- no scalarExprs: duplicates and order by not allowed
->     ,([] <$ closeParen) <**> option (flip App) (window Nothing <|> withinGroup)
+>     ,([] <$ closeParen) <**> option ((flip3 App) Nothing) (window Nothing <|> withinGroup)
 >     ]
 >   where
->     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] f
->     aggAppWithoutDupe n = AggregateApp n SQDefault
+>     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] Nothing f
+>     aggAppWithoutDupe n a o = AggregateApp n SQDefault a o Nothing
 
 > afilter :: Parser ScalarExpr
 > afilter = keyword_ "filter" *> parens (keyword_ "where" *> scalarExpr)

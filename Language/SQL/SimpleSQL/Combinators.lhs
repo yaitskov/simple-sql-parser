@@ -14,6 +14,7 @@
 >     ,(<$$$$>)
 >     ,(<$$$$$>)
 >     ,(<$$$$$$>)
+>     ,flip3
 >     ) where
 
 > import Control.Applicative ((<$>), (<*>), (<**>), pure, Applicative)

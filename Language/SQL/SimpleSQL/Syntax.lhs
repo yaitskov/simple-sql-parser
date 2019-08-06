@@ -137,7 +137,7 @@
 
 >       -- | function application (anything that looks like c style
 >       -- function application syntactically)
->     | App [Name] [ScalarExpr]
+>     | App [Name] [ScalarExpr] (Maybe NullsRespect)
 
 
 >       -- | aggregate application, which adds distinct or all, and
@@ -147,6 +147,7 @@
 >       ,aggDistinct :: SetQuantifier -- ^ distinct
 >       ,aggArgs :: [ScalarExpr]-- ^ args
 >       ,aggOrderBy :: [SortSpec] -- ^ order by
+>       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS> 
 >       ,aggFilter :: Maybe ScalarExpr -- ^ filter
 >       }
 >       -- | aggregates with within group

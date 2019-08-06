@@ -66,16 +66,17 @@ which have been changed to try to improve the layout of the output.
 >     text p
 >     <+> me (\i' -> text "indicator" <+> text i') i
 
-> scalarExpr d (App f es) = names f <> parens (commaSep (map (scalarExpr d) es))
+> scalarExpr d (App f es nr) = names f <> parens (commaSep (map (scalarExpr d) es) <> nullsRespect nr)
 
-> scalarExpr dia (AggregateApp f d es od fil) =
+> scalarExpr dia (AggregateApp f d es od nr fil) =
 >     names f
 >     <> parens ((case d of
 >                   Distinct -> text "distinct"
 >                   All -> text "all"
 >                   SQDefault -> empty)
 >                <+> commaSep (map (scalarExpr dia) es)
->                <+> orderBy dia od)
+>                <+> orderBy dia od
+>                <+> nullsRespect nr)
 >     <+> me (\x -> text "filter"
 >                   <+> parens (text "where" <+> scalarExpr dia x)) fil
 
@@ -86,8 +87,8 @@ which have been changed to try to improve the layout of the output.
 >         then empty
 >         else text "within group" <+> parens (orderBy d od)
 
-> scalarExpr d (WindowApp f es pb od fr nullsRespect) =
->     names f <> parens ((commaSep $ map (scalarExpr d) es) <> nr nullsRespect)
+> scalarExpr d (WindowApp f es pb od fr nr) =
+>     names f <> parens ((commaSep $ map (scalarExpr d) es) <+> nullsRespect nr)
 >     <+> text "over"
 >     <+> parens ((case pb of
 >                     [] -> empty
@@ -108,9 +109,6 @@ which have been changed to try to improve the layout of the output.
 >     fpd Current = text "current row"
 >     fpd (Preceding e) = scalarExpr d e <+> text "preceding"
 >     fpd (Following e) = scalarExpr d e <+> text "following"
->     nr (Just NullsRespect) = text "respect nulls"
->     nr (Just NullsIgnore) = text "ignore nulls"
->     nr Nothing = mempty
 
 > scalarExpr dia (SpecialOp nm [a,b,c]) | nm `elem` [[Name Nothing "between"]
 >                                                  ,[Name Nothing "not between"]] =
@@ -257,6 +255,10 @@ which have been changed to try to improve the layout of the output.
 > unnames :: [Name] -> String
 > unnames ns = intercalate "." $ map unname ns
 
+> nullsRespect :: Maybe NullsRespect -> Doc
+> nullsRespect (Just NullsRespect) = text "respect nulls"
+> nullsRespect (Just NullsIgnore) = text "ignore nulls"
+> nullsRespect Nothing = mempty
 
 > name :: Name -> Doc
 > name (Name Nothing n) = text n

@@ -692,11 +692,13 @@ this. also fix the monad -> applicative
 > intervalLit = try (keyword_ "interval" >> do
 >     s <- optionMaybe $ choice [Plus <$ symbol_ "+"
 >                               ,Minus <$ symbol_ "-"]
->     lit <- singleQuotesOnlyStringTok
+>     val <- scalarExpr
 >     q <- optionMaybe intervalQualifier
->     mkIt s lit q)
+>     mkIt s val q)
 >   where
->     mkIt Nothing val Nothing = pure $ TypedLit (TypeName [Name Nothing "interval"]) val
+>     mkIt Nothing (NumLit val) Nothing = pure $ TypedLit (TypeName [Name Nothing "interval"]) val
+>     mkIt Nothing (StringLit _ _ val) Nothing = pure $ TypedLit (TypeName [Name Nothing "interval"]) val
+>     mkIt Nothing _ Nothing = fail "cannot use non-literal in interval type"
 >     mkIt s val (Just (a,b)) = pure $ IntervalLit s val a b
 >     mkIt (Just {}) _val Nothing = fail "cannot use sign without interval qualifier"
 
@@ -908,10 +910,12 @@ in the source
 > trim :: Parser ScalarExpr
 > trim =
 >     keyword "trim" >>
->     parens (mkTrim
+>     parens (try (mkTrim
 >             <$> option "both" sides
 >             <*> option " " singleQuotesOnlyStringTok
->             <*> (keyword_ "from" *> scalarExpr))
+>             <*> (keyword_ "from" *> scalarExpr)) <|>
+>             (mkTrim "both" " " <$> scalarExpr) --simple TRIM(' string')
+>            )
 >   where
 >     sides = choice ["leading" <$ keyword_ "leading"
 >                    ,"trailing" <$ keyword_ "trailing"
@@ -942,17 +946,22 @@ together.
 >                  <**> (optionMaybe afilter <$$$$$> AggregateApp)))
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
+>     -- handle window query with IGNORE/RESPECT NULLS
+>     , try $ do
+>         args <- commaSep1 scalarExpr
+>         nr <- respectNulls
+>         _ <- closeParen
+>         window nr <*> pure args
 >     ,commaSep1 scalarExpr
 >      <**> choice
 >           [closeParen *> choice
->                          [window
->                          ,withinGroup
+>                          [withinGroup
 >                          ,(Just <$> afilter) <$$$> aggAppWithoutDupeOrd
 >                          ,pure (flip App)]
 >           ,orderBy <* closeParen
 >            <**> (optionMaybe afilter <$$$$> aggAppWithoutDupe)]
 >      -- no scalarExprs: duplicates and order by not allowed
->     ,([] <$ closeParen) <**> option (flip App) (window <|> withinGroup)
+>     ,([] <$ closeParen) <**> option (flip App) (window Nothing <|> withinGroup)
 >     ]
 >   where
 >     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] f
@@ -976,11 +985,11 @@ No support for explicit frames yet.
 TODO: add window support for other aggregate variations, needs some
 changes to the syntax also
 
-> window :: Parser ([ScalarExpr] -> [Name] -> ScalarExpr)
-> window =
+> window :: Maybe NullsRespect -> Parser ([ScalarExpr] -> [Name] -> ScalarExpr)
+> window nr =
 >   keyword_ "over" *> openParen *> option [] partitionBy
 >   <**> (option [] orderBy
->         <**> (((optionMaybe frameClause) <* closeParen) <$$$$$> WindowApp))
+>         <**> (((optionMaybe frameClause) <* closeParen) <**> pure nr <$$$$$$> WindowApp))
 >   where
 >     partitionBy = keywords_ ["partition","by"] *> commaSep1 scalarExpr
 >     frameClause =
@@ -1004,6 +1013,11 @@ changes to the syntax also
 >          <**> (Preceding <$ keyword_ "preceding"
 >                <|> Following <$ keyword_ "following")
 >         ]
+
+> respectNulls :: Parser (Maybe NullsRespect)
+> respectNulls = (keyword_ "respect" *> keyword_ "nulls" *> pure (Just NullsRespect)) <|>
+>                (keyword_ "ignore" *> keyword_ "nulls" *> pure (Just NullsIgnore)) <|>
+>                pure Nothing
 
 == suffixes
 
@@ -2374,13 +2388,13 @@ not, leave them unreserved for now
 >     ,"lead"
 >     ,"leading"
 >     ,"left"
->     ,"like"
+>     --,"like"
 >     ,"like_regex"
 >     ,"ln"
 >     ,"local"
 >     ,"localtime"
 >     ,"localtimestamp"
->     ,"lower"
+>     --,"lower"
 >     ,"match"
 >     --,"max"
 >     ,"member"

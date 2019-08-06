@@ -21,6 +21,7 @@
 >     ,FrameRows(..)
 >     ,FramePos(..)
 >     ,OdbcLiteralType(..)
+>     ,NullsRespect(..)
 >      -- * Query expressions
 >     ,QueryExpr(..)
 >     ,makeSelect
@@ -97,7 +98,7 @@
 >       -- e.g. interval 3 days (3)
 >     | IntervalLit
 >       {ilSign :: Maybe Sign -- ^ if + or - used
->       ,ilLiteral :: String -- ^ literal text
+>       ,ilValue :: ScalarExpr -- ^ literal text or scalar (such as Iden)
 >       ,ilFrom :: IntervalTypeField
 >       ,ilTo :: Maybe IntervalTypeField
 >       }
@@ -163,6 +164,7 @@
 >       ,wnPartition :: [ScalarExpr] -- ^ partition by
 >       ,wnOrderBy :: [SortSpec] -- ^ order by
 >       ,wnFrame :: Maybe Frame -- ^ frame clause
+>       ,wnNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard BigQuery IGNORE/RESPECT NULLS in window functions
 >       }
 
 >       -- | Used for the operators which look like functions
@@ -293,6 +295,11 @@ not sure if scalar subquery, exists and unique should be represented like this
 >                 | NullsFirst
 >                 | NullsLast
 >                   deriving (Eq,Show,Read,Data,Typeable)
+>
+> -- | Represents whether or not NULLs should be respected in a window clause.
+> data NullsRespect = NullsRespect
+>                   | NullsIgnore
+>                     deriving (Eq,Show,Read,Data,Typeable)
 
 > -- | Represents the frame clause of a window
 > -- this can be [range | rows] frame_start

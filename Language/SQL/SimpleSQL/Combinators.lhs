@@ -13,6 +13,7 @@
 >     ,(<$$$>)
 >     ,(<$$$$>)
 >     ,(<$$$$$>)
+>     ,(<$$$$$$>)
 >     ) where
 
 > import Control.Applicative ((<$>), (<*>), (<**>), pure, Applicative)
@@ -71,6 +72,11 @@ a <**> (b <**> (c <$$$> f))
 > (<$$$$$>) :: Applicative f =>
 >           f e -> (a -> b -> c -> d -> e -> t) -> f (d -> c -> b -> a -> t)
 > p <$$$$$> c = p <**> pure (flip5 c)
+>
+> (<$$$$$$>) :: Applicative f' =>
+>           f' f -> (a -> b -> c -> d -> e -> f -> t) -> f' (e -> d -> c -> b -> a -> t)
+> p <$$$$$$> c = p <**> pure (flip6 c)
+
 
 Surely no-one would write code like this seriously?
 
@@ -106,3 +112,6 @@ a <**> (b <**> pure (flip ctor))
 
 > flip5 :: (a -> b -> c -> d -> e -> t) -> e -> d -> c -> b -> a -> t
 > flip5 f a b c d e = f e d c b a
+
+> flip6 :: (a -> b -> c -> d -> e -> f -> t) -> f -> e -> d -> c -> b -> a -> t
+> flip6 f' a b c d e f = f' f e d c b a

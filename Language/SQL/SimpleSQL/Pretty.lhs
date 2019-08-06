@@ -50,12 +50,12 @@ which have been changed to try to improve the layout of the output.
 > scalarExpr _ (StringLit s e t) = text s <> text t <> text e
 
 > scalarExpr _ (NumLit s) = text s
-> scalarExpr _ (IntervalLit s v f t) =
+> scalarExpr d (IntervalLit s v f t) =
 >     text "interval"
 >     <+> me (\x -> text $ case x of
 >                              Plus -> "+"
 >                              Minus -> "-") s
->     <+> quotes (text v)
+>     <+> scalarExpr d v
 >     <+> intervalTypeField f
 >     <+> me (\x -> text "to" <+> intervalTypeField x) t
 > scalarExpr _ (Iden i) = names i
@@ -86,8 +86,8 @@ which have been changed to try to improve the layout of the output.
 >         then empty
 >         else text "within group" <+> parens (orderBy d od)
 
-> scalarExpr d (WindowApp f es pb od fr) =
->     names f <> parens (commaSep $ map (scalarExpr d) es)
+> scalarExpr d (WindowApp f es pb od fr nullsRespect) =
+>     names f <> parens ((commaSep $ map (scalarExpr d) es) <> nr nullsRespect)
 >     <+> text "over"
 >     <+> parens ((case pb of
 >                     [] -> empty
@@ -108,6 +108,9 @@ which have been changed to try to improve the layout of the output.
 >     fpd Current = text "current row"
 >     fpd (Preceding e) = scalarExpr d e <+> text "preceding"
 >     fpd (Following e) = scalarExpr d e <+> text "following"
+>     nr (Just NullsRespect) = text "respect nulls"
+>     nr (Just NullsIgnore) = text "ignore nulls"
+>     nr Nothing = mempty
 
 > scalarExpr dia (SpecialOp nm [a,b,c]) | nm `elem` [[Name Nothing "between"]
 >                                                  ,[Name Nothing "not between"]] =

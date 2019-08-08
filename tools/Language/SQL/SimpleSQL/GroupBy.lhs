@@ -18,7 +18,7 @@ Here are the tests for the group by component of query exprs
 > simpleGroupBy = Group "simpleGroupBy" $ map (uncurry (TestQueryExpr ansi2011))
 >     [("select a,sum(b) from t group by a"
 >      ,makeSelect {qeSelectList = [(Iden [Name Nothing "a"],Nothing)
->                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "b"]],Nothing)]
+>                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "b"]] Nothing, Nothing)]
 >                  ,qeFrom = [TRSimple [Name Nothing "t"]]
 >                  ,qeGroupBy = [SimpleGroup $ Iden [Name Nothing "a"]]
 >                  })
@@ -26,7 +26,7 @@ Here are the tests for the group by component of query exprs
 >     ,("select a,b,sum(c) from t group by a,b"
 >      ,makeSelect {qeSelectList = [(Iden [Name Nothing "a"],Nothing)
 >                                  ,(Iden [Name Nothing "b"],Nothing)
->                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "c"]],Nothing)]
+>                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "c"]] Nothing, Nothing)]
 >                  ,qeFrom = [TRSimple [Name Nothing "t"]]
 >                  ,qeGroupBy = [SimpleGroup $ Iden [Name Nothing "a"]
 >                               ,SimpleGroup $ Iden [Name Nothing "b"]]

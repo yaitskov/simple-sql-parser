@@ -47,6 +47,6 @@
 >   where
 >     e = TestScalarExpr ansi2011 {allowOdbc = True}
 >     --tsql = ParseProcSql defaultParseFlags {pfDialect=sqlServerDialect}
->     ap n = App [Name Nothing n]
+>     ap n s = App [Name Nothing n] s Nothing
 >     iden n = Iden [Name Nothing n]
 

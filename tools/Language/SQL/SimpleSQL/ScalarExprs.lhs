@@ -39,9 +39,9 @@ Tests for parsing scalar expressions
 >      ,("'string with a '' quote'", StringLit "'" "'" "string with a '' quote")
 >      ,("'1'", StringLit "'" "'" "1")
 >      ,("interval '3' day"
->       ,IntervalLit Nothing "3" (Itf "day" Nothing) Nothing)
+>       ,IntervalLit Nothing (NumLit "3") (Itf "day" Nothing) Nothing)
 >      ,("interval '3' day (3)"
->       ,IntervalLit Nothing "3" (Itf "day" $ Just (3,Nothing)) Nothing)
+>       ,IntervalLit Nothing (NumLit "3") (Itf "day" $ Just (3,Nothing)) Nothing)
 >      ,("interval '3 weeks'", TypedLit (TypeName [Name Nothing "interval"]) "3 weeks")
 >     ]
 
@@ -70,14 +70,14 @@ Tests for parsing scalar expressions
 >     [("t.a", Iden [Name Nothing "t",Name Nothing "a"])
 >     ,("t.*", BinOp (Iden [Name Nothing "t"]) [Name Nothing "."] Star)
 >     ,("a.b.c", Iden [Name Nothing "a",Name Nothing "b",Name Nothing "c"])
->     ,("ROW(t.*,42)", App [Name Nothing "ROW"] [BinOp (Iden [Name Nothing "t"]) [Name Nothing "."] Star, NumLit "42"])
+>     ,("ROW(t.*,42)", App [Name Nothing "ROW"] [BinOp (Iden [Name Nothing "t"]) [Name Nothing "."] Star, NumLit "42"] Nothing)
 >     ]
 
 > app :: TestItem
 > app = Group "app" $ map (uncurry (TestScalarExpr ansi2011))
->     [("f()", App [Name Nothing "f"] [])
->     ,("f(a)", App [Name Nothing "f"] [Iden [Name Nothing "a"]])
->     ,("f(a,b)", App [Name Nothing "f"] [Iden [Name Nothing "a"], Iden [Name Nothing "b"]])
+>     [("f()", App [Name Nothing "f"] [] Nothing)
+>     ,("f(a)", App [Name Nothing "f"] [Iden [Name Nothing "a"]] Nothing)
+>     ,("f(a,b)", App [Name Nothing "f"] [Iden [Name Nothing "a"], Iden [Name Nothing "b"]] Nothing)
 >     ]
 
 > caseexp :: TestItem
@@ -328,75 +328,75 @@ target_string
 
 > aggregates :: TestItem
 > aggregates = Group "aggregates" $ map (uncurry (TestScalarExpr ansi2011))
->     [("count(*)",App [Name Nothing "count"] [Star])
+>     [("count(*)",App [Name Nothing "count"] [Star] Nothing)
 
 >     ,("sum(a order by a)"
 >     ,AggregateApp [Name Nothing "sum"] SQDefault [Iden [Name Nothing "a"]]
->                   [SortSpec (Iden [Name Nothing "a"]) DirDefault NullsOrderDefault] Nothing)
+>                   [SortSpec (Iden [Name Nothing "a"]) DirDefault NullsOrderDefault] Nothing Nothing)
 
 >     ,("sum(all a)"
->     ,AggregateApp [Name Nothing "sum"] All [Iden [Name Nothing "a"]] [] Nothing)
+>     ,AggregateApp [Name Nothing "sum"] All [Iden [Name Nothing "a"]] [] Nothing Nothing)
 
 >     ,("count(distinct a)"
->     ,AggregateApp [Name Nothing "count"] Distinct [Iden [Name Nothing "a"]] [] Nothing)
+>     ,AggregateApp [Name Nothing "count"] Distinct [Iden [Name Nothing "a"]] [] Nothing Nothing)
 >     ]
 
 > windowFunctions :: TestItem
 > windowFunctions = Group "windowFunctions" $ map (uncurry (TestScalarExpr ansi2011))
->     [("max(a) over ()", WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [] [] Nothing)
->     ,("count(*) over ()", WindowApp [Name Nothing "count"] [Star] [] [] Nothing)
+>     [("max(a) over ()", WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [] [] Nothing Nothing)
+>     ,("count(*) over ()", WindowApp [Name Nothing "count"] [Star] [] [] Nothing Nothing)
 
 >     ,("max(a) over (partition by b)"
->      ,WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]] [] Nothing)
+>      ,WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]] [] Nothing Nothing)
 
 >     ,("max(a) over (partition by b,c)"
->      ,WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"],Iden [Name Nothing "c"]] [] Nothing)
+>      ,WindowApp [Name Nothing "max"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"],Iden [Name Nothing "c"]] [] Nothing Nothing)
 
 >     ,("sum(a) over (order by b)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] []
->           [SortSpec (Iden [Name Nothing "b"]) DirDefault NullsOrderDefault] Nothing)
+>           [SortSpec (Iden [Name Nothing "b"]) DirDefault NullsOrderDefault] Nothing Nothing)
 
 >     ,("sum(a) over (order by b desc,c)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] []
 >           [SortSpec (Iden [Name Nothing "b"]) Desc NullsOrderDefault
->           ,SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault] Nothing)
+>           ,SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault] Nothing Nothing)
 
 >     ,("sum(a) over (partition by b order by c)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
->           [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault] Nothing)
+>           [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault] Nothing Nothing)
 
 >     ,("sum(a) over (partition by b order by c range unbounded preceding)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
->       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameFrom FrameRange UnboundedPreceding)
+>       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault] (
+>        Just $ FrameFrom FrameRange UnboundedPreceding) Nothing)
 
 >     ,("sum(a) over (partition by b order by c range 5 preceding)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
 >       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameFrom FrameRange $ Preceding (NumLit "5"))
+>       (Just $ FrameFrom FrameRange $ Preceding (NumLit "5")) Nothing)
 
 >     ,("sum(a) over (partition by b order by c range current row)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
 >       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameFrom FrameRange Current)
+>       (Just $ FrameFrom FrameRange Current) Nothing)
 
 >     ,("sum(a) over (partition by b order by c rows 5 following)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
 >       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameFrom FrameRows $ Following (NumLit "5"))
+>       (Just $ FrameFrom FrameRows $ Following (NumLit "5")) Nothing )
 
 >     ,("sum(a) over (partition by b order by c range unbounded following)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
 >       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameFrom FrameRange UnboundedFollowing)
+>       (Just $ FrameFrom FrameRange UnboundedFollowing) Nothing)
 
 >     ,("sum(a) over (partition by b order by c \n\
 >       \range between 5 preceding and 5 following)"
 >      ,WindowApp [Name Nothing "sum"] [Iden [Name Nothing "a"]] [Iden [Name Nothing "b"]]
 >       [SortSpec (Iden [Name Nothing "c"]) DirDefault NullsOrderDefault]
->       $ Just $ FrameBetween FrameRange
+>       (Just $ FrameBetween FrameRange
 >                             (Preceding (NumLit "5"))
->                             (Following (NumLit "5")))
+>                             (Following (NumLit "5"))) Nothing)
 
 >     ]
 
@@ -412,4 +412,4 @@ target_string
 >     ,"char_length"
 >     ]
 >   where
->     t fn = TestScalarExpr ansi2011 (fn ++ "(a)") $ App [Name Nothing fn] [Iden [Name Nothing "a"]]
+>     t fn = TestScalarExpr ansi2011 (fn ++ "(a)") $ App [Name Nothing fn] [Iden [Name Nothing "a"]] Nothing

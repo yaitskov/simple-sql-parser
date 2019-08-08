@@ -707,19 +707,19 @@ TODO: unicode escape
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("interval '1'", TypedLit (TypeName [Name Nothing "interval"]) "1")
 >     ,("interval '1' day"
->      ,IntervalLit Nothing "1" (Itf "day" Nothing) Nothing)
+>      ,IntervalLit Nothing (NumLit "1") (Itf "day" Nothing) Nothing)
 >     ,("interval '1' day(3)"
->      ,IntervalLit Nothing "1" (Itf "day" $ Just (3,Nothing)) Nothing)
+>      ,IntervalLit Nothing (NumLit "1") (Itf "day" $ Just (3,Nothing)) Nothing)
 >     ,("interval + '1' day(3)"
->      ,IntervalLit (Just Plus) "1" (Itf "day" $ Just (3,Nothing)) Nothing)
+>      ,IntervalLit (Just Plus) (NumLit "1") (Itf "day" $ Just (3,Nothing)) Nothing)
 >     ,("interval - '1' second(2,2)"
->      ,IntervalLit (Just Minus) "1" (Itf "second" $ Just (2,Just 2)) Nothing)
+>      ,IntervalLit (Just Minus) (NumLit "1") (Itf "second" $ Just (2,Just 2)) Nothing)
 >     ,("interval '1' year to month"
->      ,IntervalLit Nothing "1" (Itf "year" Nothing)
+>      ,IntervalLit Nothing (NumLit "1") (Itf "year" Nothing)
 >                                   (Just $ Itf "month" Nothing))
 
 >     ,("interval '1' year(4) to second(2,3) "
->      ,IntervalLit Nothing "1" (Itf "year" $ Just (4,Nothing))
+>      ,IntervalLit Nothing (NumLit "1") (Itf "year" $ Just (4,Nothing))
 >                             (Just $ Itf "second" $ Just (2, Just 3)))
 >     ]
 
@@ -1482,9 +1482,9 @@ Specify a value derived by the application of a function to an argument.
 >       \GROUP BY ROLLUP(SalesQuota);"
 >      ,makeSelect
 >       {qeSelectList = [(Iden [Name Nothing "SalesQuota"],Nothing)
->                       ,(App [Name Nothing "SUM"] [Iden [Name Nothing "SalesYTD"]]
+>                       ,(App [Name Nothing "SUM"] [Iden [Name Nothing "SalesYTD"]] Nothing
 >                        ,Just (Name Nothing "TotalSalesYTD"))
->                       ,(App [Name Nothing "GROUPING"] [Iden [Name Nothing "SalesQuota"]]
+>                       ,(App [Name Nothing "GROUPING"] [Iden [Name Nothing "SalesQuota"]] Nothing
 >                        ,Just (Name Nothing "Grouping"))]
 >       ,qeFrom = [TRSimple [Name Nothing "Sales",Name Nothing "SalesPerson"]]
 >       ,qeGroupBy = [Rollup [SimpleGroup (Iden [Name Nothing "SalesQuota"])]]})
@@ -1705,7 +1705,7 @@ Reference a field of a row value.
 > fieldReference = Group "field reference"
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("f(something).a"
->       ,BinOp (App [Name Nothing "f"] [Iden [Name Nothing "something"]])
+>       ,BinOp (App [Name Nothing "f"] [Iden [Name Nothing "something"]] Nothing)
 >        [Name Nothing "."]
 >        (Iden [Name Nothing "a"]))
 >     ]
@@ -1831,11 +1831,11 @@ Return an element of an array.
 >     [("something[3]"
 >      ,Array (Iden [Name Nothing "something"]) [NumLit "3"])
 >     ,("(something(a))[x]"
->       ,Array (Parens (App [Name Nothing "something"] [Iden [Name Nothing "a"]]))
+>       ,Array (Parens (App [Name Nothing "something"] [Iden [Name Nothing "a"]] Nothing))
 >         [Iden [Name Nothing "x"]])
 >     ,("(something(a))[x][y] "
 >       ,Array (
->         Array (Parens (App [Name Nothing "something"] [Iden [Name Nothing "a"]]))
+>         Array (Parens (App [Name Nothing "something"] [Iden [Name Nothing "a"]] Nothing))
 >         [Iden [Name Nothing "x"]])
 >         [Iden [Name Nothing "y"]])
 >     ]
@@ -1852,7 +1852,7 @@ Return the sole element of a multiset of one element.
 > multisetElementReference = Group "multisetElementReference"
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("element(something)"
->      ,App [Name Nothing "element"] [Iden [Name Nothing "something"]])
+>      ,App [Name Nothing "element"] [Iden [Name Nothing "something"]] Nothing)
 >     ]
 
 == 6.26 <value expression>
@@ -2501,7 +2501,7 @@ special case term.
 > multisetValueFunction :: TestItem
 > multisetValueFunction = Group "multiset value function"
 >    $ map (uncurry (TestScalarExpr ansi2011))
->    [("set(a)", App [Name Nothing "set"] [Iden [Name Nothing "a"]])
+>    [("set(a)", App [Name Nothing "set"] [Iden [Name Nothing "a"]] Nothing)
 >    ]
 
 == 6.41 <multiset value constructor>
@@ -2609,8 +2609,8 @@ Specify a value or list of values to be constructed into a row.
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("(a,b)"
 >      ,SpecialOp [Name Nothing "rowctor"] [Iden [Name Nothing "a"], Iden [Name Nothing "b"]])
->     ,("row(1)",App [Name Nothing "row"] [NumLit "1"])
->     ,("row(1,2)",App [Name Nothing "row"] [NumLit "1",NumLit "2"])
+>     ,("row(1)",App [Name Nothing "row"] [NumLit "1"] Nothing)
+>     ,("row(1,2)",App [Name Nothing "row"] [NumLit "1",NumLit "2"] Nothing)
 >     ]
 
 == 7.2 <row value expression>
@@ -2664,7 +2664,7 @@ Specify a set of <row value expression>s to be constructed into a table.
 >                      (Iden [Name Nothing "b"])
 >               ,SubQueryExpr SqSq
 >                (makeSelect
->                 {qeSelectList = [(App [Name Nothing "count"] [Star],Nothing)]
+>                 {qeSelectList = [(App [Name Nothing "count"] [Star] Nothing,Nothing)]
 >                 ,qeFrom = [TRSimple [Name Nothing "t"]]})]])
 >     ]
 
@@ -3035,7 +3035,7 @@ clause> to the result of the previously specified clause.
 >   where
 >     qe g = makeSelect
 >            {qeSelectList = [(Iden [Name Nothing "a"], Nothing)
->                            ,(App [Name Nothing "sum"] [Iden [Name Nothing "x"]], Nothing)]
+>                            ,(App [Name Nothing "sum"] [Iden [Name Nothing "x"]] Nothing, Nothing)]
 >            ,qeFrom = [TRSimple [Name Nothing "t"]]
 >            ,qeGroupBy = g}
 >     qex g = let x = qe g
@@ -3057,10 +3057,10 @@ not satisfy a <search condition>.
 >     [("select a,sum(x) from t group by a having sum(x) > 1000"
 >      ,makeSelect
 >       {qeSelectList = [(Iden [Name Nothing "a"], Nothing)
->                       ,(App [Name Nothing "sum"] [Iden [Name Nothing "x"]], Nothing)]
+>                       ,(App [Name Nothing "sum"] [Iden [Name Nothing "x"]] Nothing, Nothing)]
 >       ,qeFrom = [TRSimple [Name Nothing "t"]]
 >       ,qeGroupBy = [SimpleGroup $ Iden [Name Nothing "a"]]
->       ,qeHaving = Just $ BinOp (App [Name Nothing "sum"] [Iden [Name Nothing "x"]])
+>       ,qeHaving = Just $ BinOp (App [Name Nothing "sum"] [Iden [Name Nothing "x"]] Nothing)
 >                                [Name Nothing ">"]
 >                                (NumLit "1000")})
 >     ]
@@ -3463,9 +3463,9 @@ Specify a comparison of two row values.
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     $ map mkOp ["=", "<>", "<", ">", "<=", ">="]
 >     ++ [("ROW(a) = ROW(b)"
->         ,BinOp (App [Name Nothing "ROW"] [a])
+>         ,BinOp (App [Name Nothing "ROW"] [a] Nothing)
 >                [Name Nothing "="]
->                (App [Name Nothing "ROW"] [b]))
+>                (App [Name Nothing "ROW"] [b] Nothing))
 >        ,("(a,b) = (c,d)"
 >         ,BinOp (SpecialOp [Name Nothing "rowctor"] [a,b])
 >            [Name Nothing "="]
@@ -4210,25 +4210,25 @@ Specify a value computed from a collection of rows.
 > aggregateFunction :: TestItem
 > aggregateFunction = Group "aggregate function"
 >     $ map (uncurry (TestScalarExpr ansi2011)) $
->     [("count(*)",App [Name Nothing "count"] [Star])
+>     [("count(*)",App [Name Nothing "count"] [Star] Nothing)
 >     ,("count(*) filter (where something > 5)"
->      ,AggregateApp [Name Nothing "count"] SQDefault [Star] [] fil)
+>      ,AggregateApp [Name Nothing "count"] SQDefault [Star] [] Nothing fil)
 
 gsf
 
->     ,("count(a)",App [Name Nothing "count"] [Iden [Name Nothing "a"]])
+>     ,("count(a)",App [Name Nothing "count"] [Iden [Name Nothing "a"]] Nothing)
 >     ,("count(distinct a)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    Distinct
->                    [Iden [Name Nothing "a"]] [] Nothing)
+>                    [Iden [Name Nothing "a"]] [] Nothing Nothing)
 >     ,("count(all a)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    All
->                    [Iden [Name Nothing "a"]] [] Nothing)
+>                    [Iden [Name Nothing "a"]] [] Nothing Nothing)
 >     ,("count(all a) filter (where something > 5)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    All
->                    [Iden [Name Nothing "a"]] [] fil)
+>                    [Iden [Name Nothing "a"]] [] Nothing fil)
 >     ] ++ concatMap mkSimpleAgg
 >          ["avg","max","min","sum"
 >          ,"every", "any", "some"
@@ -4253,13 +4253,14 @@ osf
 >     ++ map mkGp ["dense_rank","percent_rank"
 >                 ,"cume_dist", "percentile_cont"
 >                 ,"percentile_disc"]
->     ++ [("array_agg(a)", App [Name Nothing "array_agg"] [Iden [Name Nothing "a"]])
+>     ++ [("array_agg(a)", App [Name Nothing "array_agg"] [Iden [Name Nothing "a"]] Nothing)
 >        ,("array_agg(a order by z)"
 >         ,AggregateApp [Name Nothing "array_agg"]
 >                        SQDefault
 >                        [Iden [Name Nothing "a"]]
 >                        [SortSpec (Iden [Name Nothing "z"])
 >                             DirDefault NullsOrderDefault]
+>                        Nothing
 >                        Nothing)]
 
 >   where
@@ -4271,19 +4272,22 @@ osf
 >                ob)
 
 >     mkSimpleAgg nm =
->         [(nm ++ "(a)",App [Name Nothing nm] [Iden [Name Nothing "a"]])
+>         [(nm ++ "(a)",App [Name Nothing nm] [Iden [Name Nothing "a"]] Nothing)
 >         ,(nm ++ "(distinct a)"
 >          ,AggregateApp [Name Nothing nm]
 >                        Distinct
->                        [Iden [Name Nothing "a"]] [] Nothing)]
+>                        [Iden [Name Nothing "a"]] [] Nothing Nothing)]
 >     mkBsf nm =
->         [(nm ++ "(a,b)",App [Name Nothing nm] [Iden [Name Nothing "a"],Iden [Name Nothing "b"]])
+>         [(nm ++ "(a,b)",App [Name Nothing nm] [Iden [Name Nothing "a"] ,Iden [Name Nothing "b"]] Nothing)
 >         ,(nm ++"(a,b) filter (where something > 5)"
 >           ,AggregateApp [Name Nothing nm]
 >                         SQDefault
->                         [Iden [Name Nothing "a"],Iden [Name Nothing "b"]] [] fil)]
+>                         [Iden [Name Nothing "a"],Iden [Name Nothing "b"]]
+>                         []
+>                         Nothing
+>                         fil)]
 
-== 10.10 <sort specification list>
+== 10.10 sort specification list>
 
 Function
 Specify a sort order.

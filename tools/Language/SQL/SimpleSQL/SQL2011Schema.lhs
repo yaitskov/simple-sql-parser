@@ -1337,7 +1337,7 @@ defintely skip
 >      $ CreateAssertion [Name Nothing "t1_not_empty"]
 >         $ BinOp (SubQueryExpr SqSq $
 >                  makeSelect
->                  {qeSelectList = [(App [Name Nothing "count"] [Star],Nothing)]
+>                  {qeSelectList = [(App [Name Nothing "count"] [Star] Nothing,Nothing)]
 >                  ,qeFrom = [TRSimple [Name Nothing "t1"]]
 >                  })
 >                 [Name Nothing ">"] (NumLit "0"))

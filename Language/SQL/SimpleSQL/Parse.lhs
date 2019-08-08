@@ -2138,6 +2138,7 @@ It is only allowed when all the strings are quoted with ' atm.
 > identifierTok :: [String] -> Parser (Maybe (String,String), String)
 > identifierTok blackList = mytoken (\tok ->
 >     case tok of
+>       L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
 >       L.Identifier q p | map toLower p `notElem` blackList -> Just (q,p)
 >       _ -> Nothing)
 
@@ -2430,7 +2431,7 @@ not, leave them unreserved for now
 >     ,"octet_length"
 >     ,"occurrences_regex"
 >     ,"of"
->     ,"offset"
+>     --,"offset" --offset in BigQuery can also appear in array value retrieval
 >     ,"old"
 >     ,"on"
 >     ,"only"
@@ -2540,7 +2541,7 @@ not, leave them unreserved for now
 >     ,"union"
 >     ,"unique"
 >     --,"unknown"
->     ,"unnest"
+>     --,"unnest"
 >     ,"update"
 >     ,"upper"
 >     --,"user"

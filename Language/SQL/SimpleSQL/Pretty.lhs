@@ -365,7 +365,7 @@ which have been changed to try to improve the layout of the output.
 >   text "with" <+> (if rc then text "recursive" else empty)
 >   <+> vcat [nest 5
 >             (vcat $ punctuate comma $ flip map withs $ \(n,q) ->
->              alias n <+> text "as" <+> parens (queryExpr d q))
+>              alias n <+> parens (queryExpr d q))
 >            ,queryExpr d qe]
 > queryExpr d (Values vs) =
 >     text "values"

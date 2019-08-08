@@ -84,10 +84,10 @@ These are a few misc tests which don't fit anywhere else.
 > having = Group "having" $ map (uncurry (TestQueryExpr ansi2011))
 >     [("select a,sum(b) from t group by a having sum(b) > 5"
 >      ,makeSelect {qeSelectList = [(Iden [Name Nothing "a"],Nothing)
->                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "b"]],Nothing)]
+>                                  ,(App [Name Nothing "sum"] [Iden [Name Nothing "b"]] Nothing,Nothing)]
 >                  ,qeFrom = [TRSimple [Name Nothing "t"]]
 >                  ,qeGroupBy = [SimpleGroup $ Iden [Name Nothing "a"]]
->                  ,qeHaving = Just $ BinOp (App [Name Nothing "sum"] [Iden [Name Nothing "b"]])
+>                  ,qeHaving = Just $ BinOp (App [Name Nothing "sum"] [Iden [Name Nothing "b"]] Nothing)
 >                                           [Name Nothing ">"] (NumLit "5")
 >                  })
 >     ]

@@ -11,7 +11,7 @@ Some tests for parsing full queries.
 > fullQueriesTests = Group "queries" $ map (uncurry (TestQueryExpr ansi2011))
 >     [("select count(*) from t"
 >      ,makeSelect
->       {qeSelectList = [(App [Name Nothing "count"] [Star], Nothing)]
+>       {qeSelectList = [(App [Name Nothing "count"] [Star] Nothing, Nothing)]
 >       ,qeFrom = [TRSimple [Name Nothing "t"]]
 >       }
 >      )
@@ -26,12 +26,12 @@ Some tests for parsing full queries.
 >       {qeSelectList = [(Iden [Name Nothing "a"], Nothing)
 >                       ,(App [Name Nothing "sum"]
 >                         [BinOp (Iden [Name Nothing "c"])
->                                [Name Nothing "+"] (Iden [Name Nothing "d"])]
+>                                [Name Nothing "+"] (Iden [Name Nothing "d"])] Nothing
 >                        ,Just $ Name Nothing "s")]
 >       ,qeFrom = [TRSimple [Name Nothing "t"], TRSimple [Name Nothing "u"]]
 >       ,qeWhere = Just $ BinOp (Iden [Name Nothing "a"]) [Name Nothing ">"] (NumLit "5")
 >       ,qeGroupBy = [SimpleGroup $ Iden [Name Nothing "a"]]
->       ,qeHaving = Just $ BinOp (App [Name Nothing "count"] [NumLit "1"])
+>       ,qeHaving = Just $ BinOp (App [Name Nothing "count"] [NumLit "1"] Nothing)
 >                                [Name Nothing ">"] (NumLit "5")
 >       ,qeOrderBy = [SortSpec (Iden [Name Nothing "s"]) DirDefault NullsOrderDefault]
 >       }

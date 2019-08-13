@@ -764,6 +764,7 @@ all the scalar expressions which start with an identifier
 >                            ,"covar_samp"
 >                            ,"count"
 >                            ,"cume_dist"
+>                            ,"date"
 >                            ,"grouping"
 >                            ,"intersection"
 >                            ,"ln"

@@ -1493,7 +1493,7 @@ allows offset and fetch in either order
 >     fs = makeKeywordTree ["fetch first", "fetch next"]
 >     ro = makeKeywordTree ["rows only", "row only"]
 >     -- todo: not in ansi sql dialect
->     limit = guardDialect [MySQL] *>
+>     limit = guardDialect [MySQL, BigQuery] *>
 >             keyword_ "limit" *> scalarExpr
 
 == common table expressions

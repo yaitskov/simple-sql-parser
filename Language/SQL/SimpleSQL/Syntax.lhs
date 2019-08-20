@@ -65,6 +65,7 @@
 >     ,postgres
 >     ,oracle
 >     ,sqlserver
+>     ,bigquery
 >      -- * Comment
 >     ,Comment(..)
 >     ) where

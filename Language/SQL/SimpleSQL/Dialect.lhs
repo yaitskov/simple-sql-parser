@@ -11,6 +11,7 @@ Data types to represent different dialect options
 >     ,postgres
 >     ,oracle
 >     ,sqlserver
+>     ,bigquery
 >     ) where
 
 > import Data.Data
@@ -23,6 +24,7 @@ hack for now, later will expand to flags on a feature by feature basis
 >                    | Postgres
 >                    | Oracle
 >                    | SQLServer
+>                    | BigQuery
 >                      deriving (Eq,Show,Read,Data,Typeable)
 
 > -- | Used to set the dialect used for parsing and pretty printing,
@@ -51,4 +53,6 @@ hack for now, later will expand to flags on a feature by feature basis
 > sqlserver :: Dialect
 > sqlserver = Dialect SQLServer False
 
-
+> -- | google bigquery dialect
+> bigquery :: Dialect
+> bigquery = Dialect BigQuery False

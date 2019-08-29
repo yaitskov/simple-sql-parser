@@ -631,9 +631,16 @@ syntax can start with the same keyword.
 cast: cast(expr as type)
 
 > cast :: Parser ScalarExpr
-> cast = keyword_ "cast" *>
->        parens (Cast <$> scalarExpr
->                     <*> (keyword_ "as" *> typeName))
+> cast = castX "cast"
+
+> castX :: String -> Parser ScalarExpr
+> castX funcName = keyword_ funcName *>
+>                  parens (Cast <$> scalarExpr
+>                          <*> (keyword_ "as" *> typeName))
+>
+> -- BigQuery-specific
+> safe_cast :: Parser ScalarExpr
+> safe_cast = castX "safe_cast"
 
 === exists, unique
 
@@ -1325,6 +1332,7 @@ documenting/fixing.
 >               ,parensExpr
 >               ,caseExpr
 >               ,cast
+>               ,guardDialect [BigQuery] *> safe_cast
 >               ,arrayCtor
 >               ,multisetCtor
 >               ,nextValueFor
@@ -1362,6 +1370,7 @@ use a data type for the datetime field?
 > datetimeField :: Parser String
 > datetimeField = choice (map keyword ["year","month","day"
 >                                     ,"hour","minute","second"])
+>                 <|> guardDialect [BigQuery] *> keyword "week"
 >                 <?> "datetime field"
 
 This is used in multiset operations (scalar expr), selects (query expr)
@@ -2333,7 +2342,7 @@ not, leave them unreserved for now
 >     ,"current_row"
 >     ,"current_schema"
 >     ,"current_time"
->     ,"current_timestamp"
+>     --,"current_timestamp"
 >     ,"current_transform_group_for_type"
 >     --,"current_user"
 >     ,"cursor"
@@ -2449,7 +2458,7 @@ not, leave them unreserved for now
 >     ,"nth_value"
 >     ,"ntile"
 >     --,"null"
->     ,"nullif"
+>     --,"nullif"
 >     ,"numeric"
 >     ,"octet_length"
 >     ,"occurrences_regex"
@@ -2528,7 +2537,7 @@ not, leave them unreserved for now
 >     ,"sqlexception"
 >     ,"sqlstate"
 >     ,"sqlwarning"
->     ,"sqrt"
+>     --,"sqrt"
 >     --,"start"
 >     ,"static"
 >     --,"stddev_pop"

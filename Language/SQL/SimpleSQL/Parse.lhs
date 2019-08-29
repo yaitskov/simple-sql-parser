@@ -181,7 +181,8 @@ fixing them in the syntax but leaving them till the semantic checking
 >     ,parseScalarExpr
 >     ,parseStatement
 >     ,parseStatements
->     ,ParseError(..)) where
+>     ,ParseError(..))
+> where
 
 > import Control.Monad.Identity (Identity)
 > import Control.Monad (guard, void)
@@ -878,7 +879,27 @@ target_string
 
 > specialOpKs :: Parser ScalarExpr
 > specialOpKs = choice $ map try
->     [extract, position, substring, convert, translate, overlay, trim]
+>               [extract, position, substring, convert, translate, overlay, trim]
+
+> -- | Special case for BigQuery which adds context after an alias
+> --     { UNNEST( array_expression ) | UNNEST( array_path ) | array_path }
+> --      [ [ AS ] alias ] [ WITH OFFSET [ [ AS ] alias ] ] |
+>
+> unnest :: Parser TableRef
+> unnest = do
+>   keyword_ "unnest"
+>   arg1 <- parens scalarExpr
+>   -- we really shouldn't be consuming an alias here, but we have no choice unless we want to pollute the ADTs
+>   let alias' = optionMaybe (optional (keyword_ "as") *> name)
+>   mAlias <- alias'
+>   mOffset <- optionMaybe $ try $ do
+>     keyword_ "with"
+>     keyword_ "offset"
+>     alias'
+>   let aliasA = maybe emptyName (Iden . (:[])) mAlias
+>       emptyName = Iden [Name Nothing ""]
+>       withOffsetA = maybe emptyName (\wo -> maybe Star (Iden . (:[])) wo) mOffset
+>   pure (TRFunction [Name Nothing "unnest"] $ [arg1, aliasA, withOffsetA])
 
 > extract :: Parser ScalarExpr
 > extract = specialOpK "extract" SOKMandatory [("from", True)]
@@ -1389,6 +1410,7 @@ aliases.
 >              ,TRParens <$> tref]
 >         ,TRLateral <$> (keyword_ "lateral"
 >                         *> nonJoinTref)
+>         , guardDialect [BigQuery] *> try unnest
 >         ,do
 >          n <- names
 >          choice [TRFunction n

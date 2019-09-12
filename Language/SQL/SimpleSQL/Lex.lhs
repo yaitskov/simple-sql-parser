@@ -171,16 +171,16 @@ u&"unicode quoted identifier"
 > identifier :: Dialect -> Parser Token
 > identifier d =
 >     choice
->     [quotedIden
+>     [guard (diSyntaxFlavour d /= BigQuery) >> quotedIden
 >     ,unicodeQuotedIden
 >     ,regularIden
->     ,guard (diSyntaxFlavour d == MySQL) >> mySqlQuotedIden
+>     ,guard (diSyntaxFlavour d `elem` [MySQL, BigQuery]) >> backtickQuotedIden
 >     ,guard (diSyntaxFlavour d == SQLServer) >> sqlServerQuotedIden
 >     ]
 >   where
 >     regularIden = Identifier Nothing <$> identifierString
 >     quotedIden = Identifier (Just ("\"","\"")) <$> qidenPart
->     mySqlQuotedIden = Identifier (Just ("`","`"))
+>     backtickQuotedIden = Identifier (Just ("`","`"))
 >                       <$> (char '`' *> takeWhile1 (/='`') <* char '`')
 >     sqlServerQuotedIden = Identifier (Just ("[","]"))
 >                           <$> (char '[' *> takeWhile1 (`notElem` "[]") <* char ']')

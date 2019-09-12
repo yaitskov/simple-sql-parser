@@ -2168,11 +2168,15 @@ It is only allowed when all the strings are quoted with ' atm.
 >       _ -> Nothing)
 
 > identifierTok :: [String] -> Parser (Maybe (String,String), String)
-> identifierTok blackList = mytoken (\tok ->
->     case tok of
->       L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
->       L.Identifier q p | map toLower p `notElem` blackList -> Just (q,p)
->       _ -> Nothing)
+> identifierTok blackList = do
+>     d <- getState
+>     mytoken (\tok ->
+>                case tok of
+>                  --support backticks for quoting of BigQuery columns which are otherwise keywords
+>                  L.Identifier q@(Just ("`","`")) p | diSyntaxFlavour d `elem` [BigQuery] -> Just (q,p)
+>                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
+>                  L.Identifier q p | map toLower p `notElem` blackList -> Just (q,p)
+>                  _ -> Nothing)
 
 > unquotedIdentifierTok :: [String] -> Maybe String -> Parser String
 > unquotedIdentifierTok blackList kw = mytoken (\tok ->

@@ -907,6 +907,17 @@ target_string
 >       emptyName = Iden [Name Nothing ""]
 >       withOffsetA = maybe emptyName (\wo -> maybe Star (Iden . (:[])) wo) mOffset
 >   pure (TRFunction [Name Nothing "unnest"] $ [arg1, aliasA, withOffsetA])
+>
+> -- | Special case for BigQuery which allows for aliased arguments.
+> struct :: Parser ScalarExpr
+> struct = do
+>   keyword_ "struct"
+>   sargs <- parens selectList
+>   let args = map (\(sexp, mName) ->
+>                     case mName of
+>                       Just (Name _ nam) -> (nam, sexp)
+>                       Nothing -> ("", sexp)) sargs
+>   pure (SpecialOpK [Name Nothing "struct"] Nothing args)
 
 > extract :: Parser ScalarExpr
 > extract = specialOpK "extract" SOKMandatory [("from", True)]
@@ -1339,6 +1350,7 @@ documenting/fixing.
 >               ,subquery
 >               ,intervalLit
 >               ,specialOpKs
+>               ,guardDialect [BigQuery] *> struct
 >               ,idenExpr
 >               ,odbcExpr]
 >        <?> "scalar expression"

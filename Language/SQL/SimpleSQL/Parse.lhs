@@ -185,27 +185,28 @@ fixing them in the syntax but leaving them till the semantic checking
 
 > import Control.Monad.Identity (Identity)
 > import Control.Monad (guard, void)
-> import Control.Applicative ((<$), (<$>), (<*>) ,(<*), (*>), (<**>), pure)
+> import Control.Applicative ((<**>))
 > import Data.Char (toLower, isDigit)
 > import Text.Parsec (setPosition,setSourceColumn,setSourceLine,getPosition
 >                    ,option,between,sepBy,sepBy1
 >                    ,try,many,many1,(<|>),choice,eof
 >                    ,optionMaybe,optional,runParser
 >                    ,chainl1, chainr1,(<?>))
-> -- import Text.Parsec.String (Parser)
 > import Text.Parsec.Perm (permute,(<$?>), (<|?>))
 > import Text.Parsec.Prim (getState, token)
 > import Text.Parsec.Pos (newPos)
 > import qualified Text.Parsec.Expr as E
 > import Data.List (intercalate,sort,groupBy)
 > import Data.Function (on)
+> import Data.Maybe
+> import Text.Parsec.String (GenParser)
+
 > import Language.SQL.SimpleSQL.Syntax
 > import Language.SQL.SimpleSQL.Combinators
 > import Language.SQL.SimpleSQL.Errors
 > import Language.SQL.SimpleSQL.Dialect
 > import qualified Language.SQL.SimpleSQL.Lex as L
-> import Data.Maybe
-> import Text.Parsec.String (GenParser)
+
 
 = Public API
 
@@ -508,48 +509,10 @@ factoring in this function, and it is a little dense.
 >     -- this parser handles the fixed set of multi word
 >     -- type names, plus all the type names which are
 >     -- reserved words
->     reservedTypeNames = (:[]) . Name Nothing . unwords <$> makeKeywordTree
->         ["double precision"
->         ,"character varying"
->         ,"char varying"
->         ,"character large object"
->         ,"char large object"
->         ,"national character"
->         ,"national char"
->         ,"national character varying"
->         ,"national char varying"
->         ,"national character large object"
->         ,"nchar large object"
->         ,"nchar varying"
->         ,"bit varying"
->         ,"binary large object"
->         ,"binary varying"
->         -- reserved keyword typenames:
->         ,"array"
->         ,"bigint"
->         ,"binary"
->         ,"blob"
->         ,"boolean"
->         ,"char"
->         ,"character"
->         ,"clob"
->         ,"date"
->         ,"dec"
->         ,"decimal"
->         ,"double"
->         ,"float"
->         ,"int"
->         ,"integer"
->         ,"nchar"
->         ,"nclob"
->         ,"numeric"
->         ,"real"
->         ,"smallint"
->         ,"time"
->         ,"timestamp"
->         ,"varchar"
->         ,"varbinary"
->         ]
+>     reservedTypeNames = do
+>         d <- getState
+>         (:[]) . Name Nothing . unwords <$> makeKeywordTree (diSpecialTypeNames d)
+>         
 
 = Scalar expressions
 
@@ -721,92 +684,21 @@ all the scalar expressions which start with an identifier
 > idenExpr =
 >     -- todo: work out how to left factor this
 >     try (TypedLit <$> typeName <*> singleQuotesOnlyStringTok)
->     <|> multisetSetFunction
->     <|> (try keywordFunction <**> app)
 >     <|> (names <**> option Iden app)
+>     <|> keywordFunctionOrIden
 >   where
->     -- this is a special case because set is a reserved keyword
->     -- and the names parser won't parse it
->     multisetSetFunction =
->         App [Name Nothing "set"] . (:[]) <$>
->         (try (keyword_ "set" *> openParen)
->          *> scalarExpr <* closeParen) <*> pure Nothing
->     keywordFunction =
->         let makeKeywordFunction x = if map toLower x `elem` keywordFunctionNames
->                                     then return [Name Nothing x]
->                                     else fail ""
->         in unquotedIdentifierTok [] Nothing >>= makeKeywordFunction
->     -- todo: this list should be in the dialects
->     -- we should have tests to check these work
->     -- we should have tests to check if they are used elsewhere, you
->     -- get a keyword failure
->     -- these are the names of functions which are also keywords
->     -- so this identifier can only be used unquoted for a function application
->     -- and nowhere else
->     -- not sure if this list is 100% correct
->     -- todo: make a corresponding list of reserved keywords which can be
->     -- parsed as an identifier
->     keywordFunctionNames = ["abs"
->                            ,"all"
->                            ,"any"
->                            ,"array_agg"
->                            ,"avg"
->                            ,"ceil"
->                            ,"ceiling"
->                            ,"char_length"
->                            ,"character_length"
->                            ,"coalesce"
->                            ,"collect"
->                            ,"contains"
->                            ,"convert"
->                            ,"corr"
->                            ,"covar_pop"
->                            ,"covar_samp"
->                            ,"count"
->                            ,"cume_dist"
->                            ,"date"
->                            ,"grouping"
->                            ,"intersection"
->                            ,"ln"
->                            ,"max"
->                            ,"mod"
->                            ,"percent_rank"
->                            ,"percentile_cont"
->                            ,"percentile_disc"
->                            ,"power"
->                            ,"rank"
->                            ,"regr_avgx"
->                            ,"regr_avgy"
->                            ,"regr_count"
->                            ,"regr_intercept"
->                            ,"regr_r2"
->                            ,"regr_slope"
->                            ,"regr_sxx"
->                            ,"regr_sxy"
->                            ,"regr_syy"
->                            ,"row"
->                            ,"row_number"
->                            ,"some"
->                            ,"stddev_pop"
->                            ,"stddev_samp"
->                            ,"sum"
->                            ,"upper"
->                            ,"var_pop"
->                            ,"var_samp"
->                            ,"width_bucket"
->                            -- window functions added here too
->                            ,"row_number"
->                            ,"rank"
->                            ,"dense_rank"
->                            ,"percent_rank"
->                            ,"cume_dist"
->                            ,"ntile"
->                            ,"lead"
->                            ,"lag"
->                            ,"first_value"
->                            ,"last_value"
->                            ,"nth_value"
->                            ]
+>     -- special cases for keywords that can be parsed as an iden or app
+>     keywordFunctionOrIden = try $ do
+>         x <- unquotedIdentifierTok [] Nothing
+>         d <- getState
+>         let i = map toLower x `elem` diIdentifierKeywords d
+>             a = map toLower x `elem` diAppKeywords d
+>         case () of
+>             _  | i && a -> pure [Name Nothing x] <**> option Iden app
+>                | i -> pure (Iden [Name Nothing x])
+>                | a -> pure [Name Nothing x] <**> app
+>                | otherwise -> fail ""
+
 
 
 === special
@@ -1488,12 +1380,12 @@ allows offset and fetch in either order
 > fetch :: Parser ScalarExpr
 > fetch = fetchFirst <|> limit
 >   where
->     fetchFirst = guardDialect [ANSI2011]
+>     fetchFirst = guardDialect diFetchFirst
 >                  *> fs *> scalarExpr <* ro
 >     fs = makeKeywordTree ["fetch first", "fetch next"]
 >     ro = makeKeywordTree ["rows only", "row only"]
 >     -- todo: not in ansi sql dialect
->     limit = guardDialect [MySQL] *>
+>     limit = guardDialect diLimit *>
 >             keyword_ "limit" *> scalarExpr
 
 == common table expressions
@@ -1503,8 +1395,11 @@ allows offset and fetch in either order
 >     With <$> option False (True <$ keyword_ "recursive")
 >          <*> commaSep1 withQuery <*> queryExpr
 >   where
->     withQuery = (,) <$> (fromAlias <* keyword_ "as")
+>     withQuery = (,) <$> (withAlias <* keyword_ "as")
 >                     <*> parens queryExpr
+>     withAlias = Alias <$> name <*> columnAliases
+>     columnAliases = optionMaybe $ parens $ commaSep1 name
+
 
 == query expression
 
@@ -2139,7 +2034,8 @@ It is only allowed when all the strings are quoted with ' atm.
 > identifierTok :: [String] -> Parser (Maybe (String,String), String)
 > identifierTok blackList = mytoken (\tok ->
 >     case tok of
->       L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
+>       L.Identifier q@(Just ("\"", "\"")) p -> Just (q,p)
+>       L.Identifier q@(Just {}) p -> Just (q,p)
 >       L.Identifier q p | map toLower p `notElem` blackList -> Just (q,p)
 >       _ -> Nothing)
 
@@ -2220,7 +2116,7 @@ helper function to improve error messages
 > commaSep1 = (`sepBy1` comma)
 
 > blacklist :: Dialect -> [String]
-> blacklist = reservedWord
+> blacklist d = diKeywords d
 
 These blacklisted names are mostly needed when we parse something with
 an optional alias, e.g. select a a from t. If we write select a from
@@ -2230,352 +2126,37 @@ could be tuned differently for each place the identifierString/
 identifier parsers are used to only blacklist the bare
 minimum. Something like this might be needed for dialect support, even
 if it is pretty silly to use a keyword as an unquoted identifier when
-there is a effing quoting syntax as well.
+there is a quoting syntax as well.
 
 The standard has a weird mix of reserved keywords and unreserved
 keywords (I'm not sure what exactly being an unreserved keyword
 means).
 
-can't work out if aggregate functions are supposed to be reserved or
-not, leave them unreserved for now
+The current approach tries to have everything which is a keyword only
+in the keyword list - so it can only be used in some other context if
+quoted. If something is a 'ansi keyword', but appears only as an
+identifier or function name for instance in the syntax (or something
+that looks identical to this), then it isn't treated as a keyword at
+all. When there is some overlap (e.g. 'set'), then there is either
+special case parsing code to handle this (in the case of set), or it
+is not treated as a keyword (not perfect, but if it more or less
+works, ok for now).
 
-> reservedWord :: Dialect -> [String]
-> reservedWord d | diSyntaxFlavour d == ANSI2011 =
->     ["abs"
->     --,"all"
->     ,"allocate"
->     ,"alter"
->     ,"and"
->     --,"any"
->     ,"are"
->     ,"array"
->     --,"array_agg"
->     ,"array_max_cardinality"
->     ,"as"
->     ,"asensitive"
->     ,"asymmetric"
->     ,"at"
->     ,"atomic"
->     ,"authorization"
->     --,"avg"
->     ,"begin"
->     ,"begin_frame"
->     ,"begin_partition"
->     ,"between"
->     ,"bigint"
->     ,"binary"
->     ,"blob"
->     ,"boolean"
->     ,"both"
->     ,"by"
->     ,"call"
->     ,"called"
->     ,"cardinality"
->     ,"cascaded"
->     ,"case"
->     ,"cast"
->     ,"ceil"
->     ,"ceiling"
->     ,"char"
->     ,"char_length"
->     ,"character"
->     ,"character_length"
->     ,"check"
->     ,"clob"
->     ,"close"
->     ,"coalesce"
->     ,"collate"
->     --,"collect"
->     ,"column"
->     ,"commit"
->     ,"condition"
->     ,"connect"
->     ,"constraint"
->     ,"contains"
->     ,"convert"
->     --,"corr"
->     ,"corresponding"
->     --,"count"
->     --,"covar_pop"
->     --,"covar_samp"
->     ,"create"
->     ,"cross"
->     ,"cube"
->     --,"cume_dist"
->     ,"current"
->     ,"current_catalog"
->     --,"current_date"
->     --,"current_default_transform_group"
->     --,"current_path"
->     --,"current_role"
->     ,"current_row"
->     ,"current_schema"
->     ,"current_time"
->     ,"current_timestamp"
->     ,"current_transform_group_for_type"
->     --,"current_user"
->     ,"cursor"
->     ,"cycle"
->     ,"date"
->     --,"day"
->     ,"deallocate"
->     ,"dec"
->     ,"decimal"
->     ,"declare"
->     --,"default"
->     ,"delete"
->     --,"dense_rank"
->     ,"deref"
->     ,"describe"
->     ,"deterministic"
->     ,"disconnect"
->     ,"distinct"
->     ,"double"
->     ,"drop"
->     ,"dynamic"
->     ,"each"
->     --,"element"
->     ,"else"
->     ,"end"
->     ,"end_frame"
->     ,"end_partition"
->     ,"end-exec"
->     ,"equals"
->     ,"escape"
->     --,"every"
->     ,"except"
->     ,"exec"
->     ,"execute"
->     ,"exists"
->     ,"exp"
->     ,"external"
->     ,"extract"
->     --,"false"
->     ,"fetch"
->     ,"filter"
->     ,"first_value"
->     ,"float"
->     ,"floor"
->     ,"for"
->     ,"foreign"
->     ,"frame_row"
->     ,"free"
->     ,"from"
->     ,"full"
->     ,"function"
->     --,"fusion"
->     ,"get"
->     ,"global"
->     ,"grant"
->     ,"group"
->     --,"grouping"
->     ,"groups"
->     ,"having"
->     ,"hold"
->     --,"hour"
->     ,"identity"
->     ,"in"
->     ,"indicator"
->     ,"inner"
->     ,"inout"
->     ,"insensitive"
->     ,"insert"
->     ,"int"
->     ,"integer"
->     ,"intersect"
->     --,"intersection"
->     ,"interval"
->     ,"into"
->     ,"is"
->     ,"join"
->     ,"lag"
->     ,"language"
->     ,"large"
->     ,"last_value"
->     ,"lateral"
->     ,"lead"
->     ,"leading"
->     ,"left"
->     --,"like"
->     ,"like_regex"
->     ,"ln"
->     ,"local"
->     ,"localtime"
->     ,"localtimestamp"
->     --,"lower"
->     ,"match"
->     --,"max"
->     ,"member"
->     ,"merge"
->     ,"method"
->     --,"min"
->     --,"minute"
->     ,"mod"
->     ,"modifies"
->     --,"module"
->     --,"month"
->     ,"multiset"
->     ,"national"
->     ,"natural"
->     ,"nchar"
->     ,"nclob"
->     ,"new"
->     ,"no"
->     ,"none"
->     ,"normalize"
->     ,"not"
->     ,"nth_value"
->     ,"ntile"
->     --,"null"
->     ,"nullif"
->     ,"numeric"
->     ,"octet_length"
->     ,"occurrences_regex"
->     ,"of"
->     --,"offset" --offset in BigQuery can also appear in array value retrieval
->     ,"old"
->     ,"on"
->     ,"only"
->     ,"open"
->     ,"or"
->     ,"order"
->     ,"out"
->     ,"outer"
->     ,"over"
->     ,"overlaps"
->     ,"overlay"
->     ,"parameter"
->     ,"partition"
->     ,"percent"
->     --,"percent_rank"
->     --,"percentile_cont"
->     --,"percentile_disc"
->     ,"period"
->     ,"portion"
->     ,"position"
->     ,"position_regex"
->     ,"power"
->     ,"precedes"
->     ,"precision"
->     ,"prepare"
->     ,"primary"
->     ,"procedure"
->     ,"range"
->     --,"rank"
->     ,"reads"
->     ,"real"
->     ,"recursive"
->     ,"ref"
->     ,"references"
->     ,"referencing"
->     --,"regr_avgx"
->     --,"regr_avgy"
->     --,"regr_count"
->     --,"regr_intercept"
->     --,"regr_r2"
->     --,"regr_slope"
->     --,"regr_sxx"
->     --,"regr_sxy"
->     --,"regr_syy"
->     ,"release"
->     ,"result"
->     ,"return"
->     ,"returns"
->     ,"revoke"
->     ,"right"
->     ,"rollback"
->     ,"rollup"
->     ,"row"
->     ,"row_number"
->     ,"rows"
->     ,"savepoint"
->     ,"scope"
->     ,"scroll"
->     ,"search"
->     --,"second"
->     ,"select"
->     ,"sensitive"
->     --,"session_user"
->     ,"set"
->     ,"similar"
->     ,"smallint"
->     --,"some"
->     ,"specific"
->     ,"specifictype"
->     ,"sql"
->     ,"sqlexception"
->     ,"sqlstate"
->     ,"sqlwarning"
->     ,"sqrt"
->     --,"start"
->     ,"static"
->     --,"stddev_pop"
->     --,"stddev_samp"
->     ,"submultiset"
->     ,"substring"
->     ,"substring_regex"
->     ,"succeeds"
->     --,"sum"
->     ,"symmetric"
->     ,"system"
->     ,"system_time"
->     --,"system_user"
->     ,"table"
->     ,"tablesample"
->     ,"then"
->     ,"time"
->     ,"timestamp"
->     ,"timezone_hour"
->     ,"timezone_minute"
->     ,"to"
->     ,"trailing"
->     ,"translate"
->     ,"translate_regex"
->     ,"translation"
->     ,"treat"
->     ,"trigger"
->     ,"truncate"
->     ,"trim"
->     ,"trim_array"
->     --,"true"
->     ,"uescape"
->     ,"union"
->     ,"unique"
->     --,"unknown"
->     --,"unnest"
->     ,"update"
->     ,"upper"
->     --,"user"
->     ,"using"
->     --,"value"
->     ,"values"
->     ,"value_of"
->     --,"var_pop"
->     --,"var_samp"
->     ,"varbinary"
->     ,"varchar"
->     ,"varying"
->     ,"versioning"
->     ,"when"
->     ,"whenever"
->     ,"where"
->     ,"width_bucket"
->     ,"window"
->     ,"with"
->     ,"within"
->     ,"without"
->     --,"year"
->     ]
+An exception to this is the standard type names are considered as
+keywords at the moment, with a special case in the type parser to
+make this work. Maybe this isn't necessary or is a bad idea.
 
-TODO: create this list properly
-      move this list into the dialect data type
+It is possible to have a problem if you remove something which is a
+keyword from this list, and still want to parse statements using it
+as a keyword - for instance, removing things like 'from' or 'as',
+will likely mean many things don't parse anymore.
 
-> reservedWord _ = reservedWord ansi2011 ++ ["limit"]
 
 -----------
 
-bit hacky, used to make the dialect available during parsing so
-different parsers can be used for different dialects
+Used to make the dialect available during parsing so different parsers
+can be used for different dialects. Not sure if this is the best way
+to do it, but it's convenient
 
 > type ParseState = Dialect
 
@@ -2583,19 +2164,10 @@ different parsers can be used for different dialects
 
 > type Parser = GenParser Token ParseState
 
-> guardDialect :: [SyntaxFlavour] -> Parser ()
-> guardDialect ds = do
+> guardDialect :: (Dialect -> Bool) -> Parser ()
+> guardDialect f = do
 >     d <- getState
->     guard (diSyntaxFlavour d `elem` ds)
+>     guard (f d)
 
-TODO: the ParseState and the Dialect argument should be turned into a
-flags struct. Part (or all?) of this struct is the dialect
-information, but each dialect has different versions + a big set of
-flags to control syntax variations within a version of a product
-dialect (for instance, string and identifier parsing rules vary from
-dialect to dialect and version to version, and most or all SQL DBMSs
-appear to have a set of flags to further enable or disable variations
-for quoting and escaping strings and identifiers).
-
-The dialect stuff can also be used for custom options: e.g. to only
+The dialect stuff could also be used for custom options: e.g. to only
 parse dml for instance.

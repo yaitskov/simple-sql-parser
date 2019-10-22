@@ -13,7 +13,7 @@ formats output nicely. Current target is to parse most SQL:2011
 queries, plus a good subset of DDL, non-query DML, transaction
 management, access control and session management.
 
-This is the documentation for version 0.5.0. Documentation for other
+This is the documentation for version 0.6.0. Documentation for other
 versions is available here:
 http://jakewheat.github.io/simple-sql-parser/.
 
@@ -22,10 +22,7 @@ probably not very stable, since adding support for all the
 not-yet-supported ANSI SQL syntax, then other dialects of SQL is
 likely to change the abstract syntax types considerably.
 
-Release 0.5.0 is a checkpoint release since there hasn't been a
-release for a while.
-
-Tested with GHC 8.6.5, 8.4.4 and 8.2.1.
+Tested with GHC 8.8.1, 8.6.5, 8.4.4 and 8.2.1.
 
 == Links
 
@@ -338,7 +335,6 @@ doIt src = do
     either (error . peFormattedError)
            (putStrLn . ppShow)
            parsed
-
 ----
 
 
@@ -371,21 +367,13 @@ cabal v2-test
 ----
 
 Or you can run them directly which gives more options. The tests use
-tasty, which provides the command line options.
+tasty, which provides the command line options. --hide-successes
+with --ansi-tricks=false so it works is a good option to use:
+
 
 ----
-cabal v2-build --enable-tests
-dist-newstyle/build/x86_64-linux/ghc-8.6.5/simple-sql-parser-0.5.0/t/Tests/build/Tests/Tests
+cabal v2-run test:Tests -- --hide-successes --ansi-tricks=false
 ----
-
---hide-successes is a good option to use:
-
-----
-dist-newstyle/build/x86_64-linux/ghc-8.6.5/simple-sql-parser-0.5.0/t/Tests/build/Tests/Tests --hide-successes
-----
-
-Right now this option doesn't seem to be working for me - it still
-outputs a huge amount of text when all the tests pass.
 
 == Reporting bugs
 
@@ -401,4 +389,5 @@ generally available to work on these, so you should either make a pull
 request, or find someone willing to write the fixes and make a pull
 request.
 
-
+There is a related tutorial on implementing a SQL parser here:
+http://jakewheat.github.io/intro_to_parsing/

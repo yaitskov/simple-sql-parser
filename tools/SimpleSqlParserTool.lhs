@@ -14,15 +14,12 @@ indent: parse then pretty print sql
 > import System.Exit
 > import Data.List
 > import Text.Show.Pretty
-> import Control.Applicative
+> --import Control.Applicative
 
 > import Language.SQL.SimpleSQL.Pretty
 > import Language.SQL.SimpleSQL.Parse
-> import Language.SQL.SimpleSQL.Syntax
 > import Language.SQL.SimpleSQL.Lex
 
-
-> dialect = ansi2011
 
 > main :: IO ()
 > main = do
@@ -58,8 +55,8 @@ indent: parse then pretty print sql
 > getInput :: [String] -> IO (FilePath,String)
 > getInput as =
 >     case as of
->       ["-"] -> ("-",) <$> getContents
->       ("-c":as') -> return ("-", unwords as')
+>       ["-"] -> ("",) <$> getContents
+>       ("-c":as') -> return ("", unwords as')
 >       [filename] -> (filename,) <$> readFile filename
 >       _ -> showHelp (Just "arguments not recognised") >> error ""
 
@@ -70,7 +67,7 @@ indent: parse then pretty print sql
 >       (f,src) <- getInput args
 >       either (error . peFormattedError)
 >           (putStrLn . ppShow)
->           $ parseStatements dialect f Nothing src
+>           $ parseStatements ansi2011 f Nothing src
 >   )
 
 > lexCommand :: (String,[String] -> IO ())
@@ -80,7 +77,7 @@ indent: parse then pretty print sql
 >       (f,src) <- getInput args
 >       either (error . peFormattedError)
 >              (putStrLn . intercalate ",\n" . map show)
->              $ lexSQL dialect f Nothing src
+>              $ lexSQL ansi2011 f Nothing src
 >   )
 
 
@@ -90,7 +87,7 @@ indent: parse then pretty print sql
 >   ,\args -> do
 >       (f,src) <- getInput args
 >       either (error . peFormattedError)
->           (putStrLn . prettyStatements dialect)
->           $ parseStatements dialect f Nothing src
+>           (putStrLn . prettyStatements ansi2011)
+>           $ parseStatements ansi2011 f Nothing src
 
 >   )

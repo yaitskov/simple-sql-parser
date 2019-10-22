@@ -58,19 +58,11 @@
 >     ,PrivilegeAction(..)
 >     ,AdminOptionFor(..)
 >     ,GrantOptionFor(..)
->      -- * Dialects
->     ,Dialect(allowOdbc)
->     ,ansi2011
->     ,mysql
->     ,postgres
->     ,oracle
->     ,sqlserver
 >      -- * Comment
 >     ,Comment(..)
 >     ) where
 
 > import Data.Data
-> import Language.SQL.SimpleSQL.Dialect
 
 > -- | Represents a value expression. This is used for the expressions
 > -- in select lists. It is also used for expressions in where, group

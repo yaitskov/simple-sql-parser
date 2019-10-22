@@ -1,5 +1,4 @@
 
-> {-# LANGUAGE CPP #-}
 > -- | These is the pretty printing functions, which produce SQL
 > -- source from ASTs. The code attempts to format the output in a
 > -- readable way.
@@ -10,22 +9,23 @@
 >     ,prettyStatements
 >     ) where
 
-#if MIN_VERSION_base(4,11,0)
-
 > import Prelude hiding ((<>))
-
-#endif
 
 TODO: there should be more comments in this file, especially the bits
 which have been changed to try to improve the layout of the output.
+Try to do this when this code is ported to a modern pretty printing lib.
 
-> import Language.SQL.SimpleSQL.Syntax
-> import Language.SQL.SimpleSQL.Dialect
+> --import Language.SQL.SimpleSQL.Dialect
 > import Text.PrettyPrint (render, vcat, text, (<>), (<+>), empty, parens,
 >                          nest, Doc, punctuate, comma, sep, quotes,
 >                          brackets,hcat)
 > import Data.Maybe (maybeToList, catMaybes)
 > import Data.List (intercalate)
+
+
+> import Language.SQL.SimpleSQL.Syntax
+> import Language.SQL.SimpleSQL.Dialect
+
 
 > -- | Convert a query expr ast to concrete syntax.
 > prettyQueryExpr :: Dialect -> QueryExpr -> String
@@ -342,7 +342,7 @@ which have been changed to try to improve the layout of the output.
 >       ]
 >   where
 >     fetchFirst =
->       me (\e -> if diSyntaxFlavour dia == MySQL
+>       me (\e -> if diLimit dia
 >                 then text "limit" <+> scalarExpr dia e
 >                 else text "fetch first" <+> scalarExpr dia e
 >                      <+> text "rows only") fe
@@ -365,8 +365,13 @@ which have been changed to try to improve the layout of the output.
 >   text "with" <+> (if rc then text "recursive" else empty)
 >   <+> vcat [nest 5
 >             (vcat $ punctuate comma $ flip map withs $ \(n,q) ->
->              alias n <+> parens (queryExpr d q))
+>              withAlias n <+> text "as" <+> parens (queryExpr d q))
 >            ,queryExpr d qe]
+>   where
+>     withAlias (Alias nm cols) = name nm
+>                                 <+> me (parens . commaSep . map name) cols
+
+
 > queryExpr d (Values vs) =
 >     text "values"
 >     <+> nest 7 (commaSep (map (parens . commaSep . map (scalarExpr d)) vs))

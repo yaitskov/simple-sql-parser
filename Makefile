@@ -6,11 +6,11 @@
 
 .PHONY : build
 build :
-	cabal v2-build --enable-tests
+	cabal v2-build --enable-tests -fparserexe
 
 .PHONY : test
 test :
-	cabal v2-test
+	cabal v2-run test:Tests -- --hide-successes --ansi-tricks=false
 
 .PHONY : website
 website :

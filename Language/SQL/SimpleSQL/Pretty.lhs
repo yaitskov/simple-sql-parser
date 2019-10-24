@@ -373,7 +373,7 @@ which have been changed to try to improve the layout of the output.
 > queryExpr _ (Table t) = text "table" <+> names t
 > queryExpr d (QEComment cmt v) =
 >     vcat $ map comment cmt ++ [queryExpr d v]
-
+> queryExpr d (QParens p) = parens (queryExpr d p) --if you like your parentheses, you can keep your parentheses
 
 > alias :: Alias -> Doc
 > alias (Alias nm cols) =

@@ -1358,7 +1358,7 @@ documenting/fixing.
 expose the b expression for window frame clause range between
 
 > scalarExprB :: Parser ScalarExpr
-> scalarExprB = E.makeExprParser (opTable True) term
+> scalarExprB = E.buildExpressionParser (opTable True) term
 
 == helper parsers
 
@@ -1571,6 +1571,8 @@ and union, etc..
 >     values = keyword_ "values"
 >              >> Values <$> commaSep (parens (commaSep scalarExpr))
 >     table = keyword_ "table" >> Table <$> names
+>     parensQuery = QParens <$> parens queryExpr
+
 
 local data type to help with parsing the bit after the select list,
 called 'table expression' in the ansi sql grammar. Maybe this should

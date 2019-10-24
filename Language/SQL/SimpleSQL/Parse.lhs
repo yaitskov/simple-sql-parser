@@ -1358,7 +1358,7 @@ documenting/fixing.
 expose the b expression for window frame clause range between
 
 > scalarExprB :: Parser ScalarExpr
-> scalarExprB = E.buildExpressionParser (opTable True) term
+> scalarExprB = E.makeExprParser (opTable True) term
 
 == helper parsers
 
@@ -1557,7 +1557,7 @@ and union, etc..
 > queryExpr :: Parser QueryExpr
 > queryExpr = choice
 >     [with
->     ,chainr1 (choice [values,table, select]) setOp]
+>     ,chainr1 (choice [values,table, select, try parensQuery]) setOp]
 >   where
 >     select = keyword_ "select" >>
 >         mkSelect
@@ -1604,12 +1604,14 @@ be in the public syntax?
 >         <*> corr
 >   where
 >     cq o d c q0 q1 = QueryExprSetOp q0 o d c q1
->     setOpK = choice [Union <$ keyword_ "union"
->                     ,Intersect <$ keyword_ "intersect"
->                     ,Except <$ keyword_ "except"]
+>     setOpK = setOpName
 >             <?> "set operator"
 >     corr = option Respectively (Corresponding <$ keyword_ "corresponding")
 
+> setOpName :: Parser SetOperatorName
+> setOpName = choice [Union <$ keyword_ "union"
+>                    ,Intersect <$ keyword_ "intersect"
+>                    ,Except <$ keyword_ "except"]
 
 wrapper for query expr which ignores optional trailing semicolon.
 

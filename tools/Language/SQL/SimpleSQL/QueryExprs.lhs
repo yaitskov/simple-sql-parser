@@ -13,6 +13,7 @@ query expressions from one string.
 >     ,("select 1;",[ms])
 >     ,("select 1;select 1",[ms,ms])
 >     ,(" select 1;select 1; ",[ms,ms])
+>     ,("(with x as (with y as select 1) union select 1;", [ms])
 >     ]
 >   where
 >     ms = SelectStatement $ makeSelect {qeSelectList = [(NumLit "1",Nothing)]}

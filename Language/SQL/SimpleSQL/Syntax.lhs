@@ -376,6 +376,7 @@ This would make some things a bit cleaner?
 >     | Values [[ScalarExpr]]
 >     | Table [Name]
 >     | QEComment [Comment] QueryExpr
+>     | QParens QueryExpr
 >       deriving (Eq,Show,Read,Data,Typeable)
 
 TODO: add queryexpr parens to deal with e.g.

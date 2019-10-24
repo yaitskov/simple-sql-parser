@@ -349,10 +349,7 @@ which have been changed to try to improve the layout of the output.
 
 > queryExpr dia (QueryExprSetOp q1 ct d c q2) =
 >   sep [queryExpr dia q1
->       ,text (case ct of
->                 Union -> "union"
->                 Intersect -> "intersect"
->                 Except -> "except")
+>       ,setOperatorName ct
 >        <+> case d of
 >                SQDefault -> empty
 >                All -> text "all"
@@ -373,6 +370,7 @@ which have been changed to try to improve the layout of the output.
 > queryExpr _ (Table t) = text "table" <+> names t
 > queryExpr d (QEComment cmt v) =
 >     vcat $ map comment cmt ++ [queryExpr d v]
+> queryExpr d (QParens p) = parens (queryExpr d p) --if you like your parentheses, you can keep your parentheses
 
 
 > alias :: Alias -> Doc
@@ -422,6 +420,12 @@ which have been changed to try to improve the layout of the output.
 > maybeScalarExpr d k = me
 >       (\e -> sep [text k
 >                  ,nest (length k + 1) $ scalarExpr d e])
+
+> setOperatorName :: SetOperatorName -> Doc
+> setOperatorName ct = text (case ct of
+>                           Union -> "union"
+>                           Intersect -> "intersect"
+>                           Except -> "except")
 
 > grpBy :: Dialect -> [GroupingExpr] -> Doc
 > grpBy _ [] = empty

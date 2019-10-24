@@ -187,26 +187,29 @@ fixing them in the syntax but leaving them till the semantic checking
 > import Control.Monad.Identity (Identity)
 > import Control.Monad (guard, void)
 > import Control.Applicative ((<$), (<$>), (<*>) ,(<*), (*>), (<**>), pure)
+> import Control.Applicative.Permutations
+> import Control.Monad.Combinators.Expr as E
 > import Data.Char (toLower, isDigit)
-> import Text.Parsec (setPosition,setSourceColumn,setSourceLine,getPosition
->                    ,option,between,sepBy,sepBy1
->                    ,try,many,many1,(<|>),choice,eof
->                    ,optionMaybe,optional,runParser
->                    ,chainl1, chainr1,(<?>))
-> -- import Text.Parsec.String (Parser)
-> import Text.Parsec.Perm (permute,(<$?>), (<|?>))
-> import Text.Parsec.Prim (getState, token)
-> import Text.Parsec.Pos (newPos)
-> import qualified Text.Parsec.Expr as E
+> import Data.Void
+> import qualified Data.Text as T
+> import Text.Megaparsec (State(..), Pos, mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParser',
+>                    option,between,sepBy,sepBy1,Parsec
+>                    ,try,many,some,(<|>),choice,eof
+>                    ,option,optional
+>                    ,(<?>))
 > import Data.List (intercalate,sort,groupBy)
 > import Data.Function (on)
 > import Language.SQL.SimpleSQL.Syntax
-> import Language.SQL.SimpleSQL.Combinators
+> import Language.SQL.SimpleSQL.Combinators hiding (Parser)
 > import Language.SQL.SimpleSQL.Errors
 > import Language.SQL.SimpleSQL.Dialect
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
-> import Text.Parsec.String (GenParser)
+> import qualified Data.Text as T
+
+
+> type Parser = Parsec Void [((T.Text, Pos, Pos), L.Token)]
+>
 
 = Public API
 
@@ -278,15 +281,23 @@ converts the error return to the nice wrapper
 >           -> String
 >           -> Either ParseError a
 > wrapParse parser d f p src = do
+
 >     let (l,c) = fromMaybe (1,1) p
 >     lx <- L.lexSQL d f (Just (l,c)) src
->     either (Left . convParseError src) Right
->       $ runParser (setPos p *> parser <* eof)
->                   d f $ filter keep lx
+>     let src' = filter keep lx
+>         freshState = State { stateInput = src',
+>                              stateOffset = 0,
+>                              statePosState = freshPosState}
+>         freshPosState = PosState { pstateOffset = 0,
+>                                    pstateInput = src',
+>                                    pstateSourcePos = SourcePos {
+>                                      sourceName = f,
+>                                      sourceLine = mkPos l,
+>                                      sourceColumn = mkPos c},
+>                                   pstateTabWidth = defaultTabWidth,
+>                                   pstateLinePrefix = ""}
+>     snd $ runParser' (parser <* eof) freshState
 >   where
->     setPos Nothing = pure ()
->     setPos (Just (l,c)) = fmap up getPosition >>= setPosition
->       where up = flip setSourceColumn c . flip setSourceLine l
 >     keep (_,L.Whitespace {}) = False
 >     keep (_,L.LineComment {}) = False
 >     keep (_,L.BlockComment {}) = False
@@ -1215,7 +1226,9 @@ syntax is way too messy. It might be possible to avoid this if we
 wanted to avoid extensibility and to not be concerned with parse error
 messages, but both of these are too important.
 
-> opTable :: Bool -> [[E.Operator [Token] ParseState Identity ScalarExpr]]
+> data AssocCompat = AssocLeft | AssocRight | AssocNone
+> 
+> opTable :: Bool -> _ --[[E.Operator [Token] ParseState Identity ScalarExpr]]
 > opTable bExpr =
 >         [-- parse match and quantified comparisons as postfix ops
 >           -- todo: left factor the quantified comparison with regular
@@ -1224,30 +1237,30 @@ messages, but both of these are too important.
 >          ,E.Postfix matchPredicateSuffix
 >          ]
 
->         ,[binarySym "." E.AssocLeft]
+>         ,[binarySym "." AssocLeft]
 
 >         ,[postfix' arraySuffix
 >          ,postfix' collateSuffix]
 
 >         ,[prefixSym "+", prefixSym "-"]
 
->         ,[binarySym "^" E.AssocLeft]
+>         ,[binarySym "^" AssocLeft]
 
->         ,[binarySym "*" E.AssocLeft
->          ,binarySym "/" E.AssocLeft
->          ,binarySym "%" E.AssocLeft]
+>         ,[binarySym "*" AssocLeft
+>          ,binarySym "/" AssocLeft
+>          ,binarySym "%" AssocLeft]
 
->         ,[binarySym "+" E.AssocLeft
->          ,binarySym "-" E.AssocLeft]
+>         ,[binarySym "+" AssocLeft
+>          ,binarySym "-" AssocLeft]
 
->         ,[binarySym "||" E.AssocRight
+>         ,[binarySym "||" AssocRight
 >          ,prefixSym "~"
->          ,binarySym "&" E.AssocRight
->          ,binarySym "|" E.AssocRight]
+>          ,binarySym "&" AssocRight
+>          ,binarySym "|" AssocRight]
 
->         ,[binaryKeyword "overlaps" E.AssocNone]
+>         ,[binaryKeyword "overlaps" AssocNone]
 
->         ,[binaryKeyword "like" E.AssocNone
+>         ,[binaryKeyword "like" AssocNone
 >          -- have to use try with inSuffix because of a conflict
 >          -- with 'in' in position function, and not between
 >          -- between also has a try in it to deal with 'not'
@@ -1261,13 +1274,13 @@ messages, but both of these are too important.
 >              ,"is not similar to"]]
 >          ++ [multisetBinOp]
 
->         ,[binarySym "<" E.AssocNone
->          ,binarySym ">" E.AssocNone
->          ,binarySym ">=" E.AssocNone
->          ,binarySym "<=" E.AssocNone
->          ,binarySym "!=" E.AssocRight
->          ,binarySym "<>" E.AssocRight
->          ,binarySym "=" E.AssocRight]
+>         ,[binarySym "<" AssocNone
+>          ,binarySym ">" AssocNone
+>          ,binarySym ">=" AssocNone
+>          ,binarySym "<=" AssocNone
+>          ,binarySym "!=" AssocRight
+>          ,binarySym "<>" AssocRight
+>          ,binarySym "=" AssocRight]
 
 >         ,[postfixKeywords $ makeKeywordTree
 >              ["is null"
@@ -1284,33 +1297,33 @@ messages, but both of these are too important.
 
 >         ,[prefixKeyword "not"]
 
->         ,if bExpr then [] else [binaryKeyword "and" E.AssocLeft]
+>         ,if bExpr then [] else [binaryKeyword "and" AssocLeft]
 
->         ,[binaryKeyword "or" E.AssocLeft]
+>         ,[binaryKeyword "or" AssocLeft]
 
 >        ]
 >   where
 >     binarySym nm assoc = binary (symbol_ nm) nm assoc
 >     binaryKeyword nm assoc = binary (keyword_ nm) nm assoc
 >     binaryKeywords p =
->         E.Infix (do
+>         E.InfixN (do
 >                  o <- try p
 >                  pure (\a b -> BinOp a [Name Nothing $ unwords o] b))
->             E.AssocNone
 >     postfixKeywords p =
 >       postfix' $ do
 >           o <- try p
 >           pure $ PostfixOp [Name Nothing $ unwords o]
->     binary p nm assoc =
->       E.Infix (p >> pure (\a b -> BinOp a [Name Nothing nm] b)) assoc
->     multisetBinOp = E.Infix (do
+>     binary p nm assoc = case assoc of
+>                          AssocLeft -> E.InfixL
+>                          AssocRight -> E.InfixR
+>                          AssocNone -> E.InfixN $ (p >> pure (\a b -> BinOp a [Name Nothing nm] b))
+>     multisetBinOp = E.InfixL (do
 >         keyword_ "multiset"
 >         o <- choice [Union <$ keyword_ "union"
 >                     ,Intersect <$ keyword_ "intersect"
 >                     ,Except <$ keyword_ "except"]
 >         d <- option SQDefault duplicates
 >         pure (\a b -> MultisetBinOp a o d b))
->           E.AssocLeft
 >     prefixKeyword nm = prefix (keyword_ nm) nm
 >     prefixSym nm = prefix (symbol_ nm) nm
 >     prefix p nm = prefix' (p >> pure (PrefixOp [Name Nothing nm]))
@@ -1333,7 +1346,7 @@ fragile and could at least do with some heavy explanation. Update: the
 documenting/fixing.
 
 > scalarExpr :: Parser ScalarExpr
-> scalarExpr = E.buildExpressionParser (opTable False) term
+> scalarExpr = E.makeExprParser (opTable False) term
 
 > term :: Parser ScalarExpr
 > term = choice [simpleLiteral
@@ -1571,6 +1584,7 @@ and union, etc..
 >     values = keyword_ "values"
 >              >> Values <$> commaSep (parens (commaSep scalarExpr))
 >     table = keyword_ "table" >> Table <$> names
+>     parensQuery = QParens <$> parens queryExpr
 
 local data type to help with parsing the bit after the select list,
 called 'table expression' in the ansi sql grammar. Maybe this should
@@ -2404,7 +2418,7 @@ not, leave them unreserved for now
 >     ,"filter"
 >     ,"first_value"
 >     ,"float"
->     ,"floor"
+> --    ,"floor"
 >     ,"for"
 >     ,"foreign"
 >     ,"frame_row"
@@ -2629,8 +2643,6 @@ different parsers can be used for different dialects
 > type ParseState = Dialect
 
 > type Token = ((String,Int,Int),L.Token)
-
-> type Parser = GenParser Token ParseState
 
 > guardDialect :: [SyntaxFlavour] -> Parser ()
 > guardDialect ds = do

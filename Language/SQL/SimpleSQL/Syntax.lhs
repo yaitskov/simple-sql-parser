@@ -112,6 +112,8 @@
 >       -- | star, as in select *, t.*, count(*)
 >     | Star
 
+>     | ExceptColumns ScalarExpr [[Name]] -- ^ BigQuery only - * EXCEPT(a,b,c)
+> 
 >     | Parameter -- ^ Represents a ? in a parameterized query
 >     | PositionalArg Int -- ^ Represents an e.g. $1 in a parameterized query
 >     | HostParameter String (Maybe String) -- ^ represents a host

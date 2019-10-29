@@ -60,6 +60,7 @@ which have been changed to try to improve the layout of the output.
 >     <+> me (\x -> text "to" <+> intervalTypeField x) t
 > scalarExpr _ (Iden i) = names i
 > scalarExpr _ Star = text "*"
+> scalarExpr d (ExceptColumns sexp columns) = scalarExpr d sexp <+> text "EXCEPT" <+> parens (commaSep (map names columns))
 > scalarExpr _ Parameter = text "?"
 > scalarExpr _ (PositionalArg n) = text $ "$" ++ show n
 > scalarExpr _ (HostParameter p i) =

@@ -596,6 +596,14 @@ select x from t where x > :param
 > positionalArg :: Parser ScalarExpr
 > positionalArg = PositionalArg <$> positionalArgTok
 
+== EXCEPT clause- BigQuery only
+
+> exceptColumns :: Parser (ScalarExpr -> ScalarExpr)
+> exceptColumns = do
+>  keyword_ "except"
+>  flip ExceptColumns <$> parens (commaSep names)
+>
+
 == parens
 
 scalar expression parens, row ctor and scalar subquery
@@ -912,12 +920,29 @@ target_string
 > struct :: Parser ScalarExpr
 > struct = do
 >   keyword_ "struct"
+>   mType <- optionMaybe structType
 >   sargs <- parens selectList
->   let args = map (\(sexp, mName) ->
+>   let args = typeArgs ++ map (\(sexp, mName) ->
 >                     case mName of
 >                       Just (Name _ nam) -> (nam, sexp)
 >                       Nothing -> ("", sexp)) sargs
+>       typeArgs = case mType of
+>         Nothing -> []
+>         Just types -> map (\t -> ("<>", t)) types
 >   pure (SpecialOpK [Name Nothing "struct"] Nothing args)
+>
+> -- | Parse BigQuery struct type definition.
+> structType :: Parser [ScalarExpr]
+> structType = do
+>   let angleBrackets = between (symbol "<") (symbol ">")
+>   -- the struct type in angle brackets can either be typed names or names of other columns
+>   -- struct<int64>
+>   -- struct<a int64, b string>
+>       emptyName = [Name Nothing "<>"] 
+>       typeP = try (BinOp <$> idenExpr <*> pure emptyName <*> idenExpr) <|>
+>               BinOp <$> pure (Iden [Name Nothing "<>"]) <*> pure emptyName <*> idenExpr
+>   angleBrackets (commaSep typeP)
+
 
 > extract :: Parser ScalarExpr
 > extract = specialOpK "extract" SOKMandatory [("from", True)]
@@ -1287,7 +1312,7 @@ messages, but both of these are too important.
 >         ,if bExpr then [] else [binaryKeyword "and" E.AssocLeft]
 
 >         ,[binaryKeyword "or" E.AssocLeft]
-
+>         ,[exceptColumnsOp] 
 >        ]
 >   where
 >     binarySym nm assoc = binary (symbol_ nm) nm assoc
@@ -1311,6 +1336,7 @@ messages, but both of these are too important.
 >         d <- option SQDefault duplicates
 >         pure (\a b -> MultisetBinOp a o d b))
 >           E.AssocLeft
+>     exceptColumnsOp = E.Postfix (guardDialect [BigQuery] *> exceptColumns)
 >     prefixKeyword nm = prefix (keyword_ nm) nm
 >     prefixSym nm = prefix (symbol_ nm) nm
 >     prefix p nm = prefix' (p >> pure (PrefixOp [Name Nothing nm]))
@@ -2406,7 +2432,7 @@ not, leave them unreserved for now
 >     ,"filter"
 >     ,"first_value"
 >     ,"float"
->     ,"floor"
+>     --,"floor"
 >     ,"for"
 >     ,"foreign"
 >     ,"frame_row"

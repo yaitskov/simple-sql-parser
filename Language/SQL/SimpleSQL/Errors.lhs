@@ -4,11 +4,10 @@
 >     (--ParseError(..)
 >     --,formatError
 >     --,convParseError
->     ParseError
+>     --ParseError
 >     ) where
 
-> import Text.Megaparsec (ParseErrorBundle)
-> import Data.Text (Text)
-> import Data.Void
+> --import Text.Megaparsec (ParseErrorBundle)
+> --import Data.Text (Text)
+> --import Data.Void
 
-> type ParseError = ParseErrorBundle Text Void

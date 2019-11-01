@@ -2,6 +2,7 @@
 These are the tests for the queryExprs parsing which parses multiple
 query expressions from one string.
 
+>{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.QueryExprs (queryExprsTests) where
 
 > import Language.SQL.SimpleSQL.TestTypes

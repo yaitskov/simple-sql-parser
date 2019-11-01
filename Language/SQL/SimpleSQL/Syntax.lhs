@@ -72,6 +72,7 @@
 
 > import Data.Data
 > import Language.SQL.SimpleSQL.Dialect
+> import Data.Text (Text)
 
 > -- | Represents a value expression. This is used for the expressions
 > -- in select lists. It is also used for expressions in where, group
@@ -91,10 +92,10 @@
 >       -- * 1e5
 >       --
 >       -- * 12.34e-6
->       NumLit String
+>       NumLit Text
 >       -- | string literal, with the start and end quote
 >       -- e.g. 'test' -> StringLit "'" "'" "test"
->     | StringLit String String String
+>     | StringLit Text Text Text
 >       -- | text of interval literal, units of interval precision,
 >       -- e.g. interval 3 days (3)
 >     | IntervalLit
@@ -105,7 +106,7 @@
 >       }
 
 >       -- | prefix 'typed literal', e.g. int '42'
->     | TypedLit TypeName String
+>     | TypedLit TypeName Text
 
 >       -- | identifier with parts separated by dots
 >     | Iden [Name]
@@ -114,7 +115,7 @@
 
 >     | Parameter -- ^ Represents a ? in a parameterized query
 >     | PositionalArg Int -- ^ Represents an e.g. $1 in a parameterized query
->     | HostParameter String (Maybe String) -- ^ represents a host
+>     | HostParameter Text (Maybe Text) -- ^ represents a host
 >                                           -- parameter, e.g. :a. The
 >                                           -- Maybe String is for the
 >                                           -- indicator, e.g. :var
@@ -174,7 +175,7 @@
 >       -- of commas. The maybe is for the first unnamed argument
 >       -- if it is present, and the list is for the keyword argument
 >       -- pairs.
->     | SpecialOpK [Name] (Maybe ScalarExpr) [(String,ScalarExpr)]
+>     | SpecialOpK [Name] (Maybe ScalarExpr) [(Text,ScalarExpr)]
 
 >       -- | cast(a as typename)
 >     | Cast ScalarExpr TypeName
@@ -221,7 +222,7 @@ in other places
 >     | MultisetQueryCtor QueryExpr
 >     | NextValueFor [Name]
 >     | VEComment [Comment] ScalarExpr
->     | OdbcLiteral OdbcLiteralType String
+>     | OdbcLiteral OdbcLiteralType Text
 >       -- ^ an odbc literal e.g. {d '2000-01-01'}
 >     | OdbcFunc ScalarExpr
 >       -- ^ an odbc function call e.g. {fn CHARACTER_LENGTH('test')}
@@ -234,7 +235,7 @@ in other places
 > -- * "test" -> Name (Just "\"","\"") "test"
 > -- * `something` -> Name (Just ("`","`") "something"
 > -- * [ms] -> Name (Just ("[","]") "ms"
-> data Name = Name (Maybe (String,String)) String
+> data Name = Name (Maybe (Text,Text)) Text
 >             deriving (Eq,Show,Read,Data,Typeable)
 
 > -- | Represents a type name, used in casts.
@@ -252,7 +253,7 @@ in other places
 >     | MultisetTypeName TypeName
 >       deriving (Eq,Show,Read,Data,Typeable)
 
-> data IntervalTypeField = Itf String (Maybe (Integer, Maybe Integer))
+> data IntervalTypeField = Itf Text (Maybe (Integer, Maybe Integer))
 >                          deriving (Eq,Show,Read,Data,Typeable)
 
 > data Sign = Plus | Minus
@@ -742,6 +743,6 @@ I'm not sure if this is valid syntax or not.
 
 > -- | Comment. Useful when generating SQL code programmatically. The
 > -- parser doesn't produce these.
-> data Comment = BlockComment String
+> data Comment = BlockComment Text
 >                deriving (Eq,Show,Read,Data,Typeable)
 

@@ -5,8 +5,7 @@
 > -- other parser combinator libraries other than Parsec.
 
 > module Language.SQL.SimpleSQL.Combinators
->     (optionSuffix
->     ,(<??>)
+>     ((<??>)
 >     ,(<??.>)
 >     ,(<??*>)
 >     ,(<$$>)
@@ -15,15 +14,12 @@
 >     ,(<$$$$$>)
 >     ,(<$$$$$$>)
 >     ,flip3
->     ,Parser
+>     ,optionSuffix
 >     ) where
 
 > import Control.Applicative ((<$>), (<*>), (<**>), pure, Applicative)
-> import Data.Void
-> import Data.Text (Text)
-> import Text.Megaparsec (option,many, Parsec)
+> import Text.Megaparsec (option,many, MonadParsec)
 
-> type Parser = Parsec Void Text
 
 a possible issue with the option suffix is that it enforces left
 associativity when chaining it recursively. Have to review
@@ -33,17 +29,17 @@ instead, and create an alternative suffix parser
 This function style is not good, and should be replaced with chain and
 <??> which has a different type
 
-> optionSuffix :: (a -> Parser a) -> a -> Parser a
-> optionSuffix p a = option a (p a)
-
 
 parses an optional postfix element and applies its result to its left
 hand result, taken from uu-parsinglib
 
+> optionSuffix :: MonadParsec e s m => (a -> m a) -> a -> m a
+> optionSuffix p a = option a (p a)
+
 TODO: make sure the precedence higher than <|> and lower than the
 other operators so it can be used nicely
 
-> (<??>) :: Parser a -> Parser (a -> a) -> Parser a
+> (<??>) :: (MonadParsec e s m) => m a -> m (a -> a) -> m a
 > p <??> q = p <**> option id q
 
 
@@ -89,7 +85,7 @@ composing suffix parsers, not sure about the name. This is used to add
 a second or more suffix parser contingent on the first suffix parser
 succeeding.
 
-> (<??.>) :: Parser (a -> a) -> Parser (a -> a) -> Parser (a -> a)
+> (<??.>) :: MonadParsec e s m => m (a -> a) -> m (a -> a) -> m (a -> a)
 > (<??.>) pa pb = (.) `c` pa <*> option id pb
 >   -- todo: fix this mess
 >   where c = (<$>) . flip
@@ -97,7 +93,7 @@ succeeding.
 
 0 to many repeated applications of suffix parser
 
-> (<??*>) :: Parser a -> Parser (a -> a) -> Parser a
+> (<??*>) :: MonadParsec e s m => m a -> m (a -> a) -> m a
 > p <??*> q = foldr ($) <$> p <*> (reverse <$> many q)
 
 

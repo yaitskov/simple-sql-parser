@@ -2,13 +2,15 @@
 
 Test for the lexer
 
+> {-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.LexerTests (lexerTests) where
 
 > import Language.SQL.SimpleSQL.TestTypes
-> import Language.SQL.SimpleSQL.Lex (Token(..),tokenListWillPrintAndLex)
+> import Language.SQL.SimpleSQL.Lex (SQLToken(..),tokenListWillPrintAndLex)
 > --import Debug.Trace
 > --import Data.Char (isAlpha)
 > import Data.List
+> import qualified Data.Text as T
 
 > lexerTests :: TestItem
 > lexerTests = Group "lexerTests" $
@@ -19,21 +21,21 @@ Test for the lexer
 >                                ,mySqlLexerTests
 >                                ,odbcLexerTests]]
 
-> ansiLexerTable :: [(String,[Token])]
+> ansiLexerTable :: [(String,[SQLToken])]
 > ansiLexerTable =
 >     -- single char symbols
->     map (\s -> ([s],[Symbol [s]])) "+-^*/%~&|?<>[]=,;()"
+>     map (\s -> ([s],[Symbol $ T.singleton s])) "+-^*/%~&|?<>[]=,;()"
 >     -- multi char symbols
->     ++ map (\s -> (s,[Symbol s])) [">=","<=","!=","<>","||"]
+>     ++ map (\s -> (s,[Symbol $ T.pack s])) [">=","<=","!=","<>","||"]
 >     ++ (let idens = ["a", "_a", "test", "table", "Stuff", "STUFF"]
 >         -- simple identifiers
->         in map (\i -> (i, [Identifier Nothing i])) idens
->            ++ map (\i -> ("\"" ++ i ++ "\"", [Identifier (Just ("\"","\"")) i])) idens
+>         in map (\i -> (i, [Identifier Nothing (T.pack i)])) idens
+>            ++ map (\i -> ("\"" ++ i ++ "\"", [Identifier (Just ("\"","\"")) $ T.pack i])) idens
 >            -- todo: in order to make lex . pretty id, need to
 >            -- preserve the case of the u
->            ++ map (\i -> ("u&\"" ++ i ++ "\"", [Identifier (Just ("u&\"","\"")) i])) idens
+>            ++ map (\i -> ("u&\"" ++ i ++ "\"", [Identifier (Just ("u&\"","\"")) $ T.pack i])) idens
 >            -- host param
->            ++ map (\i -> (':':i, [PrefixedVariable ':' i])) idens
+>            ++ map (\i -> (':':i, [PrefixedVariable ':' $ T.pack i])) idens
 >        )
 >     -- quoted identifiers with embedded double quotes
 >     -- the lexer doesn't unescape the quotes
@@ -45,7 +47,7 @@ Test for the lexer
 >        ,("'normalendquote '''", [SqlString "'" "'" "normalendquote ''"])
 >        ,("'\n'", [SqlString "'" "'" "\n"])]
 >     -- csstrings
->     ++ map (\c -> (c ++ "'test'", [SqlString (c ++ "'") "'" "test"]))
+>     ++ map (\c -> (c ++ "'test'", [SqlString (T.pack c <> "'") "'" "test"]))
 >        ["n", "N","b", "B","x", "X", "u&"]
 >     -- numbers
 >     ++ [("10", [SqlNumber "10"])
@@ -56,14 +58,14 @@ Test for the lexer
 >        ,("10.2", [SqlNumber "10.2"])
 >        ,("10.2e7", [SqlNumber "10.2e7"])]
 >     -- whitespace
->     ++ concat [[([a],[Whitespace [a]])
->                ,([a,b], [Whitespace [a,b]])]
+>     ++ concat [[([a],[Whitespace $ T.pack [a]])
+>                ,([a,b], [Whitespace $ T.pack [a,b]])]
 >               | a <- " \n\t", b <- " \n\t"]
 >     -- line comment
->     ++ map (\c -> (c, [LineComment c]))
+>     ++ map (\c -> (c, [LineComment $ T.pack c]))
 >        ["--", "-- ", "-- this is a comment", "-- line com\n"]
 >     -- block comment
->     ++ map (\c -> (c, [BlockComment c]))
+>     ++ map (\c -> (c, [BlockComment $ T.pack c]))
 >        ["/**/", "/* */","/* this is a comment */"
 >        ,"/* this *is/ a comment */"
 >        ]
@@ -72,14 +74,14 @@ Test for the lexer
 > ansiLexerTests = Group "ansiLexerTests" $
 >     [Group "ansi lexer token tests" $ [LexTest ansi2011 s t |  (s,t) <- ansiLexerTable]
 >     ,Group "ansi generated combination lexer tests" $
->     [ LexTest ansi2011 (s ++ s1) (t ++ t1)
+>     [ LexTest ansi2011 (s <> s1) (t <> t1)
 >     | (s,t) <- ansiLexerTable
 >     , (s1,t1) <- ansiLexerTable
->     , tokenListWillPrintAndLex ansi2011 $ t ++ t1
+>     , tokenListWillPrintAndLex ansi2011 $ t <> t1
 
 >     ]
 >     ,Group "ansiadhoclexertests" $
->        map (uncurry $ LexTest ansi2011)
+>        map (\(n, s) -> LexTest ansi2011 n s)
 >        [("", [])
 >        ,("-- line com\nstuff", [LineComment "-- line com\n",Identifier Nothing "stuff"])
 >        ] ++
@@ -104,6 +106,7 @@ Test for the lexer
 >        ,LexFails ansi2011 "12.4e5e7"]
 >      ]
 
+
 todo: lexing tests
 do quickcheck testing:
 can try to generate valid tokens then check they parse
@@ -116,24 +119,23 @@ basic sanity + explicit edge casts will provide a high level of
 assurance.
 
 
-
-> postgresLexerTable :: [(String,[Token])]
+> postgresLexerTable :: [(String,[SQLToken])]
 > postgresLexerTable =
 >     -- single char symbols
->     map (\s -> ([s],[Symbol [s]])) "+-^*/%~&|?<>[]=,;():"
+>     map (\s -> ([s],[Symbol $ T.singleton s])) "+-^*/%~&|?<>[]=,;():"
 >     -- multi char symbols
->     ++ map (\s -> (s,[Symbol s])) [">=","<=","!=","<>","||", "::","..",":="]
+>     ++ map (\s -> (s,[Symbol $ T.pack s])) [">=","<=","!=","<>","||", "::","..",":="]
 >     -- generic symbols
 
 >     ++ (let idens = ["a", "_a", "test", "table", "Stuff", "STUFF"]
 >         -- simple identifiers
->         in map (\i -> (i, [Identifier Nothing i])) idens
->            ++ map (\i -> ("\"" ++ i ++ "\"", [Identifier (Just ("\"","\"")) i])) idens
+>         in map (\i -> (i, [Identifier Nothing $ T.pack i])) idens
+>            ++ map (\i -> ("\"" ++ i ++ "\"", [Identifier (Just ("\"","\"")) $ T.pack i])) idens
 >            -- todo: in order to make lex . pretty id, need to
 >            -- preserve the case of the u
->            ++ map (\i -> ("u&\"" ++ i ++ "\"", [Identifier (Just ("u&\"","\"")) i])) idens
+>            ++ map (\i -> ("u&\"" ++ i ++ "\"", [Identifier (Just ("u&\"","\"")) $ T.pack i])) idens
 >            -- host param
->            ++ map (\i -> (':':i, [PrefixedVariable ':' i])) idens
+>            ++ map (\i -> (':':i, [PrefixedVariable ':' $ T.pack i])) idens
 >        )
 >     -- positional var
 >     ++ [("$1", [PositionalArg 1])]
@@ -155,7 +157,7 @@ assurance.
 >        ,("$a$ $$string 3$$ $a$", [SqlString "$a$" "$a$" " $$string 3$$ "])
 >        ]
 >     -- csstrings
->     ++ map (\c -> (c ++ "'test'", [SqlString (c ++ "'") "'" "test"]))
+>     ++ map (\c -> (c ++ "'test'", [SqlString (T.pack (c ++ "'")) "'" "test"]))
 >        ["n", "N","b", "B","x", "X", "u&", "e", "E"]
 >     -- numbers
 >     ++ [("10", [SqlNumber "10"])
@@ -166,14 +168,14 @@ assurance.
 >        ,("10.2", [SqlNumber "10.2"])
 >        ,("10.2e7", [SqlNumber "10.2e7"])]
 >     -- whitespace
->     ++ concat [[([a],[Whitespace [a]])
->                ,([a,b], [Whitespace [a,b]])]
+>     ++ concat [[([a],[Whitespace $ T.pack [a]])
+>                ,([a,b], [Whitespace $ T.pack [a,b]])]
 >               | a <- " \n\t", b <- " \n\t"]
 >     -- line comment
->     ++ map (\c -> (c, [LineComment c]))
+>     ++ map (\c -> (c, [LineComment $ T.pack c]))
 >        ["--", "-- ", "-- this is a comment", "-- line com\n"]
 >     -- block comment
->     ++ map (\c -> (c, [BlockComment c]))
+>     ++ map (\c -> (c, [BlockComment $ T.pack c]))
 >        ["/**/", "/* */","/* this is a comment */"
 >        ,"/* this *is/ a comment */"
 >        ]
@@ -197,23 +199,23 @@ operators without one of the exception chars
 
 also: do the testing for the ansi compatibility special cases
 
-> postgresShortOperatorTable :: [(String,[Token])]
+> postgresShortOperatorTable :: [(String,[SQLToken])]
 > postgresShortOperatorTable =
->     [ (x, [Symbol x]) | x <- someValidPostgresOperators 2]
+>     [ (x, [Symbol $ T.pack x]) | x <- someValidPostgresOperators 2]
 
 
-> postgresExtraOperatorTable :: [(String,[Token])]
+> postgresExtraOperatorTable :: [(String,[SQLToken])]
 > postgresExtraOperatorTable =
->     [ (x, [Symbol x]) | x <- someValidPostgresOperators 4]
+>     [ (x, [Symbol $ T.pack x]) | x <- someValidPostgresOperators 4]
 
 
 > someValidPostgresOperators :: Int -> [String]
 > someValidPostgresOperators l =
 >        [ x
 >        | n <- [1..l]
->        , x <- combos "+-*/<>=~!@#%^&|`?" n
+>        , x <- combos "+-*/<>=~!@#%^&|`?" n 
 >        , not ("--" `isInfixOf` x || "/*" `isInfixOf` x || "*/" `isInfixOf` x)
->        , not (last x `elem` "+-")
+>        , not (last x `elem` ("+-" :: String)) 
 >          || or (map (`elem` x) "~!@#%^&|`?")
 >        ]
 
@@ -227,10 +229,16 @@ the + or -.
 >        | n <- [1..l]
 >        , x <- combos "+-*/<>=" n
 >        , not ("--" `isInfixOf` x || "/*" `isInfixOf` x || "*/" `isInfixOf` x)
->        , not (last x `elem` "+-")
+>        , not (last x `elem` ("+-" :: String))
 >        ]
 
-
+> {-
+> tokensToStream :: [SQLToken] -> SQLTokenStream
+> tokensToStream l = SQLTokenStream (map wpos l)
+>
+> tokenAssocsToStream :: [(String, [SQLToken])] -> [(String, SQLTokenStream)]
+> tokenAssocsToStream = map (\(n,s) -> (n, tokensToStream s))
+> -}
 > postgresLexerTests :: TestItem
 > postgresLexerTests = Group "postgresLexerTests" $
 >     [Group "postgres lexer token tests" $
@@ -238,10 +246,10 @@ the + or -.
 >     ,Group "postgres generated lexer token tests" $
 >      [LexTest postgres s t | (s,t) <- postgresShortOperatorTable ++ postgresExtraOperatorTable]
 >     ,Group "postgres generated combination lexer tests" $
->     [ LexTest postgres (s ++ s1) (t ++ t1)
+>     [ LexTest postgres (s <> s1) (t <> t1)
 >     | (s,t) <- postgresLexerTable ++ postgresShortOperatorTable
 >     , (s1,t1) <- postgresLexerTable ++ postgresShortOperatorTable
->     , tokenListWillPrintAndLex postgres $ t ++ t1
+>     , tokenListWillPrintAndLex postgres $ t <> t1
 
 >     ]
 >     ,Group "generated postgres edgecase lexertests" $
@@ -272,18 +280,18 @@ the + or -.
 >     ]
 >  where
 >    edgeCaseCommentOps =
->      [ (x ++ "/*<test*/", [Symbol x, BlockComment "/*<test*/"])
+>      [ (x ++ "/*<test*/", [Symbol $ T.pack x, BlockComment "/*<test*/"])
 >      | x <- eccops
 >      , not (last x == '*')
 >      ] ++
->      [ (x ++ "--<test", [Symbol x, LineComment "--<test"])
+>      [ (x ++ "--<test", [Symbol $ T.pack x, LineComment "--<test"])
 >      | x <- eccops
 >      , not (last x == '-')
 >      ]
 >    eccops = someValidPostgresOperators 2
 >    edgeCasePlusMinusOps = concat
->      [ [ (x ++ "+", [Symbol x, Symbol "+"])
->        , (x ++ "-", [Symbol x, Symbol "-"]) ]
+>      [ [ (x ++ "+", [Symbol $ T.pack x, Symbol "+"])
+>        , (x ++ "-", [Symbol $ T.pack x, Symbol "-"]) ]
 >      | x <- somePostgresOpsWhichWontAddTrailingPlusMinus 2
 >      ]
 >    edgeCasePlusMinusComments =

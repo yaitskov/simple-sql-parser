@@ -1,6 +1,7 @@
 
-Tests for mysql dialect parsing
+Tests for mysql dialect parsin
 
+>{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.MySQL (mySQLTests) where
 
 > import Language.SQL.SimpleSQL.TestTypes

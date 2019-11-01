@@ -8,7 +8,7 @@ Tests.lhs module for the 'interpreter'.
 >     ,allowOdbc) where
 
 > import Language.SQL.SimpleSQL.Syntax
-> import Language.SQL.SimpleSQL.Lex (Token)
+> import Language.SQL.SimpleSQL.Lex (SQLToken)
 
 TODO: maybe make the dialect args into [dialect], then each test
 checks all the dialects mentioned work, and all the dialects not
@@ -31,6 +31,6 @@ check that the string given fails to parse
 
 >               | ParseQueryExprFails Dialect String
 >               | ParseScalarExprFails Dialect String
->               | LexTest Dialect String [Token]
+>               | LexTest Dialect String [SQLToken]
 >               | LexFails Dialect String
 >                 deriving (Eq,Show)

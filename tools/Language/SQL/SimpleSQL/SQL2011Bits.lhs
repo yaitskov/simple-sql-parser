@@ -4,7 +4,7 @@ Sections 17 and 19 in Foundation
 This module covers the tests for transaction management (begin,
 commit, savepoint, etc.), and session management (set).
 
-
+>{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.SQL2011Bits (sql2011BitsTests) where
 
 > import Language.SQL.SimpleSQL.TestTypes

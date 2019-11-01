@@ -175,41 +175,75 @@ fixing them in the syntax but leaving them till the semantic checking
 (which doesn't exist in this code at this time).
 
 > {-# LANGUAGE TupleSections #-}
+> {-# LANGUAGE OverloadedStrings #-}
+> {-# LANGUAGE TypeSynonymInstances #-}
+> {-# LANGUAGE FlexibleInstances #-} 
 > -- | This is the module with the parser functions.
 > module Language.SQL.SimpleSQL.Parse
->     (parseQueryExpr
+>     {-(parseQueryExpr
 >     ,parseScalarExpr
 >     ,parseStatement
 >     ,parseStatements
->     ,ParseError(..))
+>     ,ParseError
+>     )-}
 > where
 
-> import Control.Monad.Identity (Identity)
 > import Control.Monad (guard, void)
 > import Control.Applicative ((<$), (<$>), (<*>) ,(<*), (*>), (<**>), pure)
 > import Control.Applicative.Permutations
 > import Control.Monad.Combinators.Expr as E
-> import Data.Char (toLower, isDigit)
+> import Control.Monad.Reader
 > import Data.Void
+> import Data.Char (isDigit)
 > import qualified Data.Text as T
-> import Text.Megaparsec (State(..), Pos, mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParser',
->                    option,between,sepBy,sepBy1,Parsec
->                    ,try,many,some,(<|>),choice,eof
->                    ,option,optional
+> import qualified Data.Text.Read as T
+> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT',
+>                    option,between,sepBy,sepBy1,ParsecT
+>                    ,try,many,some,(<|>),choice,eof,MonadParsec(..)
+>                    ,option,optional,ParseErrorBundle(..)
 >                    ,(<?>))
-> import Data.List (intercalate,sort,groupBy)
+> import Data.List (sort,groupBy)
 > import Data.Function (on)
 > import Language.SQL.SimpleSQL.Syntax
-> import Language.SQL.SimpleSQL.Combinators hiding (Parser)
-> import Language.SQL.SimpleSQL.Errors
+> import Language.SQL.SimpleSQL.Combinators
 > import Language.SQL.SimpleSQL.Dialect
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
-> import qualified Data.Text as T
 
 
-> type Parser = Parsec Void [((T.Text, Pos, Pos), L.Token)]
->
+> type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
+> type ParseError = ParseErrorBundle L.SQLTokenStream Void
+
+This helper function takes the parser given and:
+
+sets the position when parsing
+automatically skips leading whitespace
+checks the parser parses all the input using eof
+converts the error return to the nice wrapper
+
+> wrapParse :: Parser a
+>           -> Dialect
+>           -> FilePath
+>           -> Maybe (Int,Int)
+>           -> String
+>           -> Either ParseError a
+> wrapParse parser d f p src = do
+>     let (l,c) = fromMaybe (1,1) p
+>     case L.lexSQL d f (Just (l,c)) src of
+>       Left _ -> error "lexer" -- FIXME- convert from lexer error to parser error
+>       Right lexed -> do
+>         let freshState = State { stateInput = lexed,
+>                                  stateOffset = 0,
+>                                  statePosState = freshPosState}
+>             freshPosState = PosState { pstateOffset = 0,
+>                                        pstateInput = lexed,
+>                                        pstateSourcePos = SourcePos {
+>                                          sourceName = f,
+>                                          sourceLine = mkPos l,
+>                                          sourceColumn = mkPos c},
+>                                        pstateTabWidth = defaultTabWidth,
+>                                        pstateLinePrefix = ""}
+>         snd $ runReader (runParserT' (parser <* eof) freshState) d
 
 = Public API
 
@@ -252,7 +286,7 @@ fixing them in the syntax but leaving them till the semantic checking
 >                 -> String
 >                    -- ^ the SQL source to parse
 >                 -> Either ParseError [Statement]
-> parseStatements = wrapParse statements
+> parseStatements = wrapParse statements 
 
 > -- | Parses a scalar expression.
 > parseScalarExpr :: Dialect
@@ -266,43 +300,6 @@ fixing them in the syntax but leaving them till the semantic checking
 >                    -- ^ the SQL source to parse
 >                 -> Either ParseError ScalarExpr
 > parseScalarExpr = wrapParse scalarExpr
-
-This helper function takes the parser given and:
-
-sets the position when parsing
-automatically skips leading whitespace
-checks the parser parses all the input using eof
-converts the error return to the nice wrapper
-
-> wrapParse :: Parser a
->           -> Dialect
->           -> FilePath
->           -> Maybe (Int,Int)
->           -> String
->           -> Either ParseError a
-> wrapParse parser d f p src = do
-
->     let (l,c) = fromMaybe (1,1) p
->     lx <- L.lexSQL d f (Just (l,c)) src
->     let src' = filter keep lx
->         freshState = State { stateInput = src',
->                              stateOffset = 0,
->                              statePosState = freshPosState}
->         freshPosState = PosState { pstateOffset = 0,
->                                    pstateInput = src',
->                                    pstateSourcePos = SourcePos {
->                                      sourceName = f,
->                                      sourceLine = mkPos l,
->                                      sourceColumn = mkPos c},
->                                   pstateTabWidth = defaultTabWidth,
->                                   pstateLinePrefix = ""}
->     snd $ runParser' (parser <* eof) freshState
->   where
->     keep (_,L.Whitespace {}) = False
->     keep (_,L.LineComment {}) = False
->     keep (_,L.BlockComment {}) = False
->     keep _ = True
-
 
 ------------------------------------------------
 
@@ -341,8 +338,11 @@ u&"example quoted"
 
 > name :: Parser Name
 > name = do
->     d <- getState
+>     d <- getDialect
 >     uncurry Name <$> identifierTok (blacklist d)
+>
+> getDialect :: Parser Dialect
+> getDialect = ask
 
 todo: replace (:[]) with a named function all over
 
@@ -467,8 +467,8 @@ factoring in this function, and it is a little dense.
 >     (rowTypeName <|> intervalTypeName <|> otherTypeName)
 >     <??*> tnSuffix
 >   where
->     rowTypeName =
->         RowTypeName <$> (keyword_ "row" *> parens (commaSep1 rowField))
+>     rowTypeName = 
+>       keyword_ "row" >> RowTypeName <$> parens (commaSep1 rowField)
 >     rowField = (,) <$> name <*> typeName
 >     ----------------------------
 >     intervalTypeName =
@@ -492,7 +492,7 @@ factoring in this function, and it is a little dense.
 >     precScaleTypeName = (comma *> unsignedInteger) <$$$> PrecScaleTypeName
 >     precLengthTypeName =
 >         Just <$> lobPrecSuffix
->         <**> (optionMaybe lobUnits <$$$$> PrecLengthTypeName)
+>         <**> (optional lobUnits <$$$$> PrecLengthTypeName)
 >         <|> pure Nothing <**> ((Just <$> lobUnits) <$$$$> PrecLengthTypeName)
 >     timeTypeName = tz <$$$> TimeTypeName
 >     ----------------------------
@@ -515,12 +515,12 @@ factoring in this function, and it is a little dense.
 >     tnSuffix = multiset <|> array
 >     multiset = MultisetTypeName <$ keyword_ "multiset"
 >     array = keyword_ "array" *>
->         (optionMaybe (brackets unsignedInteger) <$$> ArrayTypeName)
+>         (optional (brackets unsignedInteger) <$$> ArrayTypeName)
 >     ----------------------------
 >     -- this parser handles the fixed set of multi word
 >     -- type names, plus all the type names which are
 >     -- reserved words
->     reservedTypeNames = (:[]) . Name Nothing . unwords <$> makeKeywordTree
+>     reservedTypeNames = (:[]) . Name Nothing . T.unwords <$> makeKeywordTree
 >         ["double precision"
 >         ,"character varying"
 >         ,"char varying"
@@ -600,7 +600,7 @@ select x from t where x > :param
 >     [Parameter <$ questionMark
 >     ,HostParameter
 >      <$> hostParamTok
->      <*> optionMaybe (keyword "indicator" *> hostParamTok)]
+>      <*> optional (keyword "indicator" *> hostParamTok)]
 
 == positional arg
 
@@ -628,9 +628,9 @@ syntax can start with the same keyword.
 
 > caseExpr :: Parser ScalarExpr
 > caseExpr =
->     Case <$> (keyword_ "case" *> optionMaybe scalarExpr)
->          <*> many1 whenClause
->          <*> optionMaybe elseClause
+>     Case <$> (keyword_ "case" *> optional scalarExpr)
+>          <*> some whenClause
+>          <*> optional elseClause
 >          <* keyword_ "end"
 >   where
 >    whenClause = (,) <$> (keyword_ "when" *> commaSep1 scalarExpr)
@@ -644,7 +644,7 @@ cast: cast(expr as type)
 > cast :: Parser ScalarExpr
 > cast = castX "cast"
 
-> castX :: String -> Parser ScalarExpr
+> castX :: T.Text -> Parser ScalarExpr
 > castX funcName = keyword_ funcName *>
 >                  parens (Cast <$> scalarExpr
 >                          <*> (keyword_ "as" *> typeName))
@@ -709,10 +709,10 @@ this. also fix the monad -> applicative
 
 > intervalLit :: Parser ScalarExpr
 > intervalLit = try (keyword_ "interval" >> do
->     s <- optionMaybe $ choice [Plus <$ symbol_ "+"
+>     s <- optional $ choice [Plus <$ symbol_ "+"
 >                               ,Minus <$ symbol_ "-"]
 >     val <- scalarExpr
->     q <- optionMaybe intervalQualifier
+>     q <- optional intervalQualifier
 >     mkIt s val q)
 >   where
 >     mkIt Nothing (NumLit val) Nothing = pure $ TypedLit (TypeName [Name Nothing "interval"]) val
@@ -751,7 +751,7 @@ all the scalar expressions which start with an identifier
 >         (try (keyword_ "set" *> openParen)
 >          *> scalarExpr <* closeParen) <*> pure Nothing
 >     keywordFunction =
->         let makeKeywordFunction x = if map toLower x `elem` keywordFunctionNames
+>         let makeKeywordFunction x = if T.toLower x `elem` keywordFunctionNames
 >                                     then return [Name Nothing x]
 >                                     else fail ""
 >         in unquotedIdentifierTok [] Nothing >>= makeKeywordFunction
@@ -843,9 +843,9 @@ operatorname(firstArg keyword0 arg0 keyword1 arg1 etc.)
 >                         | SOKOptional
 >                         | SOKMandatory
 
-> specialOpK :: String -- name of the operator
+> specialOpK :: T.Text -- name of the operator
 >            -> SpecialOpKFirstArg -- has a first arg without a keyword
->            -> [(String,Bool)] -- the other args with their keywords
+>            -> [(T.Text,Bool)] -- the other args with their keywords
 >                               -- and whether they are optional
 >            -> Parser ScalarExpr
 > specialOpK opName firstArg kws =
@@ -857,13 +857,13 @@ operatorname(firstArg keyword0 arg0 keyword1 arg1 etc.)
 >               -- keyword as an identifier
 >               case (e,kws) of
 >                   (Iden [Name Nothing i], (k,_):_)
->                       | map toLower i == k ->
->                           fail $ "cannot use keyword here: " ++ i
+>                       | T.toLower i == k ->
+>                           fail $ "cannot use keyword here: " ++ T.unpack i
 >                   _ -> return ()
 >               pure e
 >     fa <- case firstArg of
 >          SOKNone -> pure Nothing
->          SOKOptional -> optionMaybe (try pfa)
+>          SOKOptional -> optional (try pfa)
 >          SOKMandatory -> Just <$> pfa
 >     as <- mapM parseArg kws
 >     void closeParen
@@ -873,7 +873,7 @@ operatorname(firstArg keyword0 arg0 keyword1 arg1 etc.)
 >         let p = keyword_ nm >> scalarExpr
 >         in fmap (nm,) <$> if mand
 >                           then Just <$> p
->                           else optionMaybe (try p)
+>                           else optional (try p)
 
 The actual operators:
 
@@ -908,9 +908,9 @@ target_string
 >   keyword_ "unnest"
 >   arg1 <- parens scalarExpr
 >   -- we really shouldn't be consuming an alias here, but we have no choice unless we want to pollute the ADTs
->   let alias' = optionMaybe (optional (keyword_ "as") *> name)
+>   let alias' = optional (optional (keyword_ "as") *> name)
 >   mAlias <- alias'
->   mOffset <- optionMaybe $ try $ do
+>   mOffset <- optional $ try $ do
 >     keyword_ "with"
 >     keyword_ "offset"
 >     alias'
@@ -995,7 +995,7 @@ together.
 >      <**> (commaSep1 scalarExpr
 >            <**> ((((option [] orderBy) <* closeParen)
 >               <**> (respectNulls
->                  <**> (optionMaybe afilter <$$$$$$> AggregateApp)))))
+>                  <**> (optional afilter <$$$$$$> AggregateApp)))))
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
 >     -- handle window query with IGNORE/RESPECT NULLS
@@ -1016,7 +1016,7 @@ together.
 >                          ,(Just <$> afilter) <$$$> aggAppWithoutDupeOrd
 >                          ,pure ((flip3 App) Nothing)]
 >           ,orderBy <* closeParen
->            <**> (optionMaybe afilter <$$$$> aggAppWithoutDupe)]
+>            <**> (optional afilter <$$$$> aggAppWithoutDupe)]
 >      -- no scalarExprs: duplicates and order by not allowed
 >     ,([] <$ closeParen) <**> option ((flip3 App) Nothing) (window Nothing <|> withinGroup)
 >     ]
@@ -1046,7 +1046,7 @@ changes to the syntax also
 > window nr =
 >   keyword_ "over" *> openParen *> option [] partitionBy
 >   <**> (option [] orderBy
->         <**> (((optionMaybe frameClause) <* closeParen) <**> pure nr <$$$$$$> WindowApp))
+>         <**> (((optional frameClause) <* closeParen) <**> pure nr <$$$$$$> WindowApp))
 >   where
 >     partitionBy = keywords_ ["partition","by"] *> commaSep1 scalarExpr
 >     frameClause =
@@ -1228,7 +1228,7 @@ messages, but both of these are too important.
 
 > data AssocCompat = AssocLeft | AssocRight | AssocNone
 > 
-> opTable :: Bool -> _ --[[E.Operator [Token] ParseState Identity ScalarExpr]]
+> opTable :: Bool -> [[Operator Parser ScalarExpr]]
 > opTable bExpr =
 >         [-- parse match and quantified comparisons as postfix ops
 >           -- todo: left factor the quantified comparison with regular
@@ -1308,15 +1308,15 @@ messages, but both of these are too important.
 >     binaryKeywords p =
 >         E.InfixN (do
 >                  o <- try p
->                  pure (\a b -> BinOp a [Name Nothing $ unwords o] b))
+>                  pure (\a b -> BinOp a [Name Nothing $ T.unwords o] b))
 >     postfixKeywords p =
->       postfix' $ do
+>       E.Postfix $ do
 >           o <- try p
->           pure $ PostfixOp [Name Nothing $ unwords o]
->     binary p nm assoc = case assoc of
+>           pure $ PostfixOp [Name Nothing $ T.unwords o]
+>     binary p nm assoc = (case assoc of
 >                          AssocLeft -> E.InfixL
 >                          AssocRight -> E.InfixR
->                          AssocNone -> E.InfixN $ (p >> pure (\a b -> BinOp a [Name Nothing nm] b))
+>                          AssocNone -> E.InfixN ) (p >> pure (\a b -> BinOp a [Name Nothing nm] b))
 >     multisetBinOp = E.InfixL (do
 >         keyword_ "multiset"
 >         o <- choice [Union <$ keyword_ "union"
@@ -1334,8 +1334,8 @@ messages, but both of these are too important.
 >     -- at least it works for 'not not a'
 >     -- ok: "x is not true is not true"
 >     -- no work: "x is not true is not null"
->     prefix'  p = E.Prefix  . chainl1 p $ pure       (.)
->     postfix' p = E.Postfix . chainl1 p $ pure (flip (.))
+>     prefix'  p = E.Prefix p
+>     postfix' p = E.Postfix p
 
 == scalar expression top level
 
@@ -1346,7 +1346,7 @@ fragile and could at least do with some heavy explanation. Update: the
 documenting/fixing.
 
 > scalarExpr :: Parser ScalarExpr
-> scalarExpr = E.makeExprParser (opTable False) term
+> scalarExpr = E.makeExprParser term (opTable False)
 
 > term :: Parser ScalarExpr
 > term = choice [simpleLiteral
@@ -1371,7 +1371,7 @@ documenting/fixing.
 expose the b expression for window frame clause range between
 
 > scalarExprB :: Parser ScalarExpr
-> scalarExprB = E.makeExprParser (opTable True) term
+> scalarExprB = E.makeExprParser term (opTable True)
 
 == helper parsers
 
@@ -1380,19 +1380,19 @@ This is used in interval literals and in interval type names.
 > intervalQualifier :: Parser (IntervalTypeField,Maybe IntervalTypeField)
 > intervalQualifier =
 >     (,) <$> intervalField
->         <*> optionMaybe (keyword_ "to" *> intervalField)
+>         <*> optional (keyword_ "to" *> intervalField)
 >   where
 >     intervalField =
 >         Itf
 >         <$> datetimeField
->         <*> optionMaybe
+>         <*> optional
 >             (parens ((,) <$> unsignedInteger
->                          <*> optionMaybe (comma *> unsignedInteger)))
+>                          <*> optional (comma *> unsignedInteger)))
 
 TODO: use datetime field in extract also
 use a data type for the datetime field?
 
-> datetimeField :: Parser String
+> datetimeField :: Parser T.Text
 > datetimeField = choice (map keyword ["year","month","day"
 >                                     ,"hour","minute","second"])
 >                 <|> guardDialect [BigQuery] *> keyword "week"
@@ -1413,7 +1413,7 @@ and set operations (query expr).
 == select lists
 
 > selectItem :: Parser (ScalarExpr,Maybe Name)
-> selectItem = (,) <$> scalarExpr <*> optionMaybe als
+> selectItem = (,) <$> scalarExpr <*> optional als
 >   where als = optional (keyword_ "as") *> name
 
 > selectList :: Parser [(ScalarExpr,Maybe Name)]
@@ -1459,8 +1459,9 @@ aliases.
 >         (TRJoin t <$> option False (True <$ keyword_ "natural")
 >                   <*> joinType
 >                   <*> nonJoinTref
->                   <*> optionMaybe joinCondition)
+>                   <*> optional joinCondition)
 >         >>= optionSuffix joinTrefSuffix
+
 
 TODO: factor the join stuff to produce better error messages (and make
 it more readable)
@@ -1489,7 +1490,7 @@ it more readable)
 > fromAlias = Alias <$> tableAlias <*> columnAliases
 >   where
 >     tableAlias = optional (keyword_ "as") *> name
->     columnAliases = optionMaybe $ parens $ commaSep1 name
+>     columnAliases = optional $ parens $ commaSep1 name
 
 == simple other parts
 
@@ -1533,8 +1534,10 @@ allows offset and fetch in either order
 + postgresql offset without row(s) and limit instead of fetch also
 
 > offsetFetch :: Parser (Maybe ScalarExpr, Maybe ScalarExpr)
-> offsetFetch = permute ((,) <$?> (Nothing, Just <$> offset)
->                            <|?> (Nothing, Just <$> fetch))
+> offsetFetch = runPermutation ((,) <$>
+>                                   toPermutationWithDefault Nothing (Just <$> offset) <*>
+>                                   toPermutationWithDefault Nothing (Just <$> fetch))
+>                              
 
 > offset :: Parser ScalarExpr
 > offset = keyword_ "offset" *> scalarExpr
@@ -1568,15 +1571,15 @@ This parser parses any query expression variant: normal select, cte,
 and union, etc..
 
 > queryExpr :: Parser QueryExpr
-> queryExpr = choice
->     [with
->     ,chainr1 (choice [values,table, select, try parensQuery]) setOp]
+> queryExpr = E.makeExprParser term' ops
 >   where
+>     term' = choice [with, values,table, select, try parensQuery]
+>     ops = [[E.InfixN setOp]]
 >     select = keyword_ "select" >>
 >         mkSelect
 >         <$> option SQDefault duplicates
 >         <*> selectList
->         <*> optionMaybe tableExpression
+>         <*> optional tableExpression
 >     mkSelect d sl Nothing =
 >         makeSelect{qeSetQuantifier = d, qeSelectList = sl}
 >     mkSelect d sl (Just (TableExpression f w g h od ofs fe)) =
@@ -1602,9 +1605,9 @@ be in the public syntax?
 
 > tableExpression :: Parser TableExpression
 > tableExpression = mkTe <$> from
->                        <*> optionMaybe whereClause
+>                        <*> optional whereClause
 >                        <*> option [] groupByClause
->                        <*> optionMaybe having
+>                        <*> optional having
 >                        <*> option [] orderBy
 >                        <*> offsetFetch
 >  where
@@ -1688,8 +1691,8 @@ TODO: change style
 
 > columnDef :: Parser ColumnDef
 > columnDef = ColumnDef <$> name <*> typeName
->             <*> optionMaybe defaultClause
->             <*> option [] (many1 colConstraintDef)
+>             <*> optional defaultClause
+>             <*> option [] (some colConstraintDef)
 >   where
 >     defaultClause = choice [
 >         keyword_ "default" >>
@@ -1708,7 +1711,7 @@ TODO: change style
 > tableConstraintDef :: Parser (Maybe [Name], TableConstraint)
 > tableConstraintDef =
 >     (,)
->     <$> (optionMaybe (keyword_ "constraint" *> names))
+>     <$> (optional (keyword_ "constraint" *> names))
 >     <*> (unique <|> primaryKey <|> check <|> references)
 >   where
 >     unique = keyword_ "unique" >>
@@ -1720,7 +1723,7 @@ TODO: change style
 >         (\cs ft ftcs m (u,d) -> TableReferencesConstraint cs ft ftcs m u d)
 >         <$> parens (commaSep1 name)
 >         <*> (keyword_ "references" *> names)
->         <*> optionMaybe (parens $ commaSep1 name)
+>         <*> optional (parens $ commaSep1 name)
 >         <*> refMatch
 >         <*> refActions
 
@@ -1731,8 +1734,8 @@ TODO: change style
 >                     ,MatchPartial <$ keyword_ "partial"
 >                     ,MatchSimple <$ keyword_ "simple"])
 > refActions :: Parser (ReferentialAction,ReferentialAction)
-> refActions = permute ((,) <$?> (DefaultReferentialAction, onUpdate)
->                           <|?> (DefaultReferentialAction, onDelete))
+> refActions = runPermutation ((,) <$> toPermutationWithDefault DefaultReferentialAction onUpdate
+>                              <*> toPermutationWithDefault DefaultReferentialAction onDelete)
 >   where
 >     -- todo: left factor?
 >     onUpdate = try (keywords_ ["on", "update"]) *> referentialAction
@@ -1748,7 +1751,7 @@ TODO: change style
 > colConstraintDef :: Parser ColConstraintDef
 > colConstraintDef =
 >     ColConstraintDef
->     <$> (optionMaybe (keyword_ "constraint" *> names))
+>     <$> (optional (keyword_ "constraint" *> names))
 >     <*> (notNull <|> unique <|> primaryKey <|> check <|> references)
 >   where
 >     notNull = ColNotNullConstraint <$ keywords_ ["not", "null"]
@@ -1758,7 +1761,7 @@ TODO: change style
 >     references = keyword_ "references" >>
 >         (\t c m (ou,od) -> ColReferencesConstraint t c m ou od)
 >         <$> names
->         <*> optionMaybe (parens name)
+>         <*> optional (parens name)
 >         <*> refMatch
 >         <*> refActions
 
@@ -1775,26 +1778,26 @@ slightly hacky parser for signed integers
 >          -- such as cycle and nocycle
 >          -- sort out options which are sometimes not allowed
 >          -- as datatype, and restart with
->     permute ((\a b c d e f g h j k -> catMaybes [a,b,c,d,e,f,g,h,j,k])
->                   <$?> nj startWith
->                   <|?> nj dataType
->                   <|?> nj restart
->                   <|?> nj incrementBy
->                   <|?> nj maxValue
->                   <|?> nj noMaxValue
->                   <|?> nj minValue
->                   <|?> nj noMinValue
->                   <|?> nj scycle
->                   <|?> nj noCycle
+>     runPermutation ((\a b c d e f g h i k -> catMaybes [a,b,c,d,e,f,g,h,i,k])
+>                   <$> nj startWith
+>                   <*> nj dataType
+>                   <*> nj restart
+>                   <*> nj incrementBy
+>                   <*> nj maxValue
+>                   <*> nj noMaxValue
+>                   <*> nj minValue
+>                   <*> nj noMinValue
+>                   <*> nj scycle
+>                   <*> nj noCycle
 >                  )
 >   where
->     nj p = (Nothing,Just <$> p)
+>     nj p = toPermutationWithDefault Nothing (Just <$> p)
 >     startWith = keywords_ ["start", "with"] >>
 >                 SGOStartWith <$> signedInteger
 >     dataType = keyword_ "as" >>
 >                SGODataType <$> typeName
 >     restart = keyword_ "restart" >>
->               SGORestart <$> optionMaybe (keyword_ "with" *> signedInteger)
+>               SGORestart <$> optional (keyword_ "with" *> signedInteger)
 >     incrementBy = keywords_ ["increment", "by"] >>
 >                 SGOIncrementBy <$> signedInteger
 >     maxValue = keyword_ "maxvalue" >>
@@ -1857,9 +1860,9 @@ slightly hacky parser for signed integers
 >     CreateView
 >     <$> (option False (True <$ keyword_ "recursive") <* keyword_ "view")
 >     <*> names
->     <*> optionMaybe (parens (commaSep1 name))
+>     <*> optional (parens (commaSep1 name))
 >     <*> (keyword_ "as" *> queryExpr)
->     <*> optionMaybe (choice [
+>     <*> optional (choice [
 >             -- todo: left factor
 >             DefaultCheckOption <$ try (keywords_ ["with", "check", "option"])
 >            ,CascadedCheckOption <$ try (keywords_ ["with", "cascaded", "check", "option"])
@@ -1875,10 +1878,10 @@ slightly hacky parser for signed integers
 >     CreateDomain
 >     <$> names
 >     <*> (optional (keyword_ "as") *> typeName)
->     <*> optionMaybe (keyword_ "default" *> scalarExpr)
+>     <*> optional (keyword_ "default" *> scalarExpr)
 >     <*> many con
 >   where
->     con = (,) <$> optionMaybe (keyword_ "constraint" *> names)
+>     con = (,) <$> optional (keyword_ "constraint" *> names)
 >           <*> (keyword_ "check" *> parens scalarExpr)
 
 > alterDomain :: Parser Statement
@@ -1891,7 +1894,7 @@ slightly hacky parser for signed integers
 >     setDefault = keywords_ ["set", "default"] >> ADSetDefault <$> scalarExpr
 >     constraint = keyword_ "add" >>
 >        ADAddConstraint
->        <$> optionMaybe (keyword_ "constraint" *> names)
+>        <$> optional (keyword_ "constraint" *> names)
 >        <*> (keyword_ "check" *> parens scalarExpr)
 >     dropDefault = ADDropDefault <$ keyword_ "default"
 >     dropConstraint = keyword_ "constraint" >> ADDropConstraint <$> names
@@ -1935,8 +1938,8 @@ slightly hacky parser for signed integers
 > delete = keywords_ ["delete","from"] >>
 >     Delete
 >     <$> names
->     <*> optionMaybe (optional (keyword_ "as") *> name)
->     <*> optionMaybe (keyword_ "where" *> scalarExpr)
+>     <*> optional (optional (keyword_ "as") *> name)
+>     <*> optional (keyword_ "where" *> scalarExpr)
 
 > truncateSt :: Parser Statement
 > truncateSt = keywords_ ["truncate", "table"] >>
@@ -1950,7 +1953,7 @@ slightly hacky parser for signed integers
 > insert = keywords_ ["insert", "into"] >>
 >     Insert
 >     <$> names
->     <*> optionMaybe (parens $ commaSep1 name)
+>     <*> optional (parens $ commaSep1 name)
 >     <*> (DefaultInsertValues <$ keywords_ ["default", "values"]
 >          <|> InsertQuery <$> queryExpr)
 
@@ -1958,9 +1961,9 @@ slightly hacky parser for signed integers
 > update = keywords_ ["update"] >>
 >     Update
 >     <$> names
->     <*> optionMaybe (optional (keyword_ "as") *> name)
+>     <*> optional (optional (keyword_ "as") *> name)
 >     <*> (keyword_ "set" *> commaSep1 setClause)
->     <*> optionMaybe (keyword_ "where" *> scalarExpr)
+>     <*> optional (keyword_ "where" *> scalarExpr)
 >   where
 >     setClause = multipleSet <|> singleSet
 >     multipleSet = SetMultiple
@@ -1996,7 +1999,7 @@ slightly hacky parser for signed integers
 
 > rollback :: Parser Statement
 > rollback = keyword_ "rollback" >> optional (keyword_ "work") >>
->     Rollback <$> optionMaybe (keywords_ ["to", "savepoint"] *> name)
+>     Rollback <$> optional (keywords_ ["to", "savepoint"] *> name)
 
 
 ------------------------------
@@ -2105,16 +2108,16 @@ row/rows only
 There is probably a simpler way of doing this but I am a bit
 thick.
 
-> makeKeywordTree :: [String] -> Parser [String]
+> makeKeywordTree :: [T.Text] -> Parser [T.Text]
 > makeKeywordTree sets =
->     parseTrees (sort $ map words sets)
+>     parseTrees (sort $ map T.words sets)
 >   where
->     parseTrees :: [[String]] -> Parser [String]
+>     parseTrees :: [[T.Text]] -> Parser [T.Text]
 >     parseTrees ws = do
->       let gs :: [[[String]]]
+>       let gs :: [[[T.Text]]]
 >           gs = groupBy ((==) `on` safeHead) ws
 >       choice $ map parseGroup gs
->     parseGroup :: [[String]] -> Parser [String]
+>     parseGroup :: [[T.Text]] -> Parser [T.Text]
 >     parseGroup l@((k:_):_) = do
 >         keyword_ k
 >         let tls = catMaybes $ map safeTail l
@@ -2138,17 +2141,17 @@ unsigned integer match
 symbol matching
 keyword matching
 
-> stringTok :: Parser (String,String,String)
+> stringTok :: Parser (T.Text,T.Text,T.Text)
 > stringTok = mytoken (\tok ->
 >     case tok of
 >       L.SqlString s e t -> Just (s,e,t)
 >       _ -> Nothing)
 
-> singleQuotesOnlyStringTok :: Parser String
+> singleQuotesOnlyStringTok :: Parser T.Text
 > singleQuotesOnlyStringTok = mytoken (\tok ->
->     case tok of
->       L.SqlString "'" "'" t -> Just t
->       _ -> Nothing)
+>  case tok of
+>   L.SqlString "'" "'" s -> Just s
+>   _ -> Nothing)
 
 This is to support SQL strings where you can write
 'part of a string' ' another part'
@@ -2156,7 +2159,7 @@ and it will parse as a single string
 
 It is only allowed when all the strings are quoted with ' atm.
 
-> stringTokExtend :: Parser (String,String,String)
+> stringTokExtend :: Parser (T.Text, T.Text, T.Text)
 > stringTokExtend = do
 >     (s,e,x) <- stringTok
 >     choice [
@@ -2164,14 +2167,14 @@ It is only allowed when all the strings are quoted with ' atm.
 >          guard (s == "'" && e == "'")
 >          (s',e',y) <- stringTokExtend
 >          guard (s' == "'" && e' == "'")
->          return $ (s,e,x ++ y)
+>          return $ (s,e,x <> y)
 >         ,return (s,e,x)
 >         ]
 
-> hostParamTok :: Parser String
+> hostParamTok :: Parser T.Text
 > hostParamTok = mytoken (\tok ->
 >     case tok of
->       L.PrefixedVariable c p -> Just (c:p)
+>       L.PrefixedVariable c p -> Just (c `T.cons` p)
 >       _ -> Nothing)
 
 > positionalArgTok :: Parser Int
@@ -2181,55 +2184,57 @@ It is only allowed when all the strings are quoted with ' atm.
 >       _ -> Nothing)
 
 
-> sqlNumberTok :: Bool -> Parser String
+> sqlNumberTok :: Bool -> Parser T.Text
 > sqlNumberTok intOnly = mytoken (\tok ->
 >     case tok of
->       L.SqlNumber p | not intOnly || all isDigit p -> Just p
+>       L.SqlNumber p | not intOnly || T.all isDigit p -> Just p
 >       _ -> Nothing)
 
 
-> symbolTok :: Maybe String -> Parser String
+> symbolTok :: Maybe T.Text -> Parser T.Text
 > symbolTok sym = mytoken (\tok ->
 >     case (sym,tok) of
 >       (Nothing, L.Symbol p) -> Just p
 >       (Just s, L.Symbol p) | s == p -> Just p
 >       _ -> Nothing)
 
-> identifierTok :: [String] -> Parser (Maybe (String,String), String)
+> identifierTok :: [T.Text] -> Parser (Maybe (T.Text, T.Text), T.Text)
 > identifierTok blackList = do
->     d <- getState
+>     d <- getDialect
 >     mytoken (\tok ->
 >                case tok of
 >                  --support backticks for quoting of BigQuery columns which are otherwise keywords
 >                  L.Identifier q@(Just ("`","`")) p | diSyntaxFlavour d `elem` [BigQuery] -> Just (q,p)
 >                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
->                  L.Identifier q p | map toLower p `notElem` blackList -> Just (q,p)
+>                  L.Identifier q p | T.toLower p `notElem` blackList -> Just (q,p)
 >                  _ -> Nothing)
 
-> unquotedIdentifierTok :: [String] -> Maybe String -> Parser String
-> unquotedIdentifierTok blackList kw = mytoken (\tok ->
+> unquotedIdentifierTok :: [T.Text] -> Maybe T.Text -> Parser T.Text
+> unquotedIdentifierTok blackList kw = 
+>   mytoken (\tok ->
 >     case (kw,tok) of
->       (Nothing, L.Identifier Nothing p) | map toLower p `notElem` blackList -> Just p
->       (Just k, L.Identifier Nothing p) | k == map toLower p -> Just p
+>       (Nothing, L.Identifier Nothing p) | T.toLower p `notElem` blackList -> Just p
+>       (Just k, L.Identifier Nothing p) | k == T.toLower p -> Just p
 >       _ -> Nothing)
-
-> mytoken :: (L.Token -> Maybe a) -> Parser a
-> mytoken test = token showToken posToken testToken
->   where
->     showToken (_,tok)   = show tok
->     posToken  ((a,b,c),_)  = newPos a b c
->     testToken (_,tok)   = test tok
-
+>
+> mytoken :: (L.SQLToken -> Maybe a) -> Parser a
+> mytoken f = token (\tokLoc ->
+>                       f (L.tokenVal tokLoc)) mempty
+>
 > unsignedInteger :: Parser Integer
-> unsignedInteger = read <$> sqlNumberTok True <?> "natural number"
+> unsignedInteger = do
+>  num <- sqlNumberTok True <?> "natural number"
+>  case T.decimal num of
+>    Left err -> error $ "reading decimal: " <> show err
+>    Right (num',_) -> pure num'
 
 todo: work out the symbol parsing better
 
-> symbol :: String -> Parser String
-> symbol s = symbolTok (Just s) <?> s
+> symbol :: T.Text -> Parser T.Text
+> symbol s = symbolTok (Just s) <?> T.unpack s
 
 > singleCharSymbol :: Char -> Parser Char
-> singleCharSymbol c = c <$ symbol [c]
+> singleCharSymbol c = c <$ symbol (T.singleton c)
 
 > questionMark :: Parser Char
 > questionMark = singleCharSymbol '?' <?> "question mark"
@@ -2255,13 +2260,13 @@ todo: work out the symbol parsing better
 
 = helper functions
 
-> keyword :: String -> Parser String
-> keyword k = unquotedIdentifierTok [] (Just k) <?> k
+> keyword :: T.Text -> Parser T.Text
+> keyword k = unquotedIdentifierTok [] (Just k) <?> T.unpack k
 
 helper function to improve error messages
 
-> keywords_ :: [String] -> Parser ()
-> keywords_ ks = mapM_ keyword_ ks <?> intercalate " " ks
+> keywords_ :: [T.Text] -> Parser ()
+> keywords_ ks = mapM_ keyword_ ks <?> T.unpack (T.intercalate " " ks)
 
 
 > parens :: Parser a -> Parser a
@@ -2273,16 +2278,16 @@ helper function to improve error messages
 > commaSep :: Parser a -> Parser [a]
 > commaSep = (`sepBy` comma)
 
-> keyword_ :: String -> Parser ()
+> keyword_ :: T.Text -> Parser ()
 > keyword_ = void . keyword
 
-> symbol_ :: String -> Parser ()
+> symbol_ :: T.Text -> Parser ()
 > symbol_ = void . symbol
 
 > commaSep1 :: Parser a -> Parser [a]
 > commaSep1 = (`sepBy1` comma)
 
-> blacklist :: Dialect -> [String]
+> blacklist :: Dialect -> [T.Text]
 > blacklist = reservedWord
 
 These blacklisted names are mostly needed when we parse something with
@@ -2302,7 +2307,7 @@ means).
 can't work out if aggregate functions are supposed to be reserved or
 not, leave them unreserved for now
 
-> reservedWord :: Dialect -> [String]
+> reservedWord :: Dialect -> [T.Text]
 > reservedWord d | diSyntaxFlavour d == ANSI2011 =
 >     ["abs"
 >     --,"all"
@@ -2642,11 +2647,9 @@ different parsers can be used for different dialects
 
 > type ParseState = Dialect
 
-> type Token = ((String,Int,Int),L.Token)
-
 > guardDialect :: [SyntaxFlavour] -> Parser ()
 > guardDialect ds = do
->     d <- getState
+>     d <- getDialect
 >     guard (diSyntaxFlavour d `elem` ds)
 
 TODO: the ParseState and the Dialect argument should be turned into a

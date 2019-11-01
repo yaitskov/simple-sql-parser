@@ -19,36 +19,47 @@ directly without the separately testing lexing stage.
 > -- | Lexer for SQL.
 > {-# LANGUAGE TupleSections #-}
 > {-# LANGUAGE OverloadedStrings #-}
+> {-# LANGUAGE TypeFamilies #-}
+> {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 > module Language.SQL.SimpleSQL.Lex
->     (Token(..)
->     ,lexSQL
+>  {-   (SQLToken(..)
+>     ,SQLTokenStream(..)
+>     ,WithPos(..)
 >     ,prettyToken
 >     ,prettyTokens
 >     ,Dialect(..)
 >     ,tokenListWillPrintAndLex
->     ) where
+>     ,lexSQL
+>     ,initialPos
+>     ,sqlTokenStreamAsList
+>     )-} where
 
 > import Language.SQL.SimpleSQL.Dialect
 
 > import Text.Megaparsec (option,manyTill
 >                    ,try,oneOf,(<|>),choice,eof
->                    ,many,Pos,lookAhead,satisfy,takeWhileP, chunk
->                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P
+>                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), initialPos, getSourcePos
+>                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..)
 >                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..))
 > import Text.Megaparsec.Char.Lexer (decimal)
 > import Text.Megaparsec.Char (string, char)
 > import Language.SQL.SimpleSQL.Combinators
-> import Language.SQL.SimpleSQL.Errors
 > import Control.Applicative hiding ((<|>), many)
 > import Data.Char
 > import Control.Monad
 > import Data.Maybe
 > import qualified Data.Text as T
-> import  Data.Text (Text)
+> import Data.Text (Text, unpack)
+> import Data.Void
+> import Data.Proxy
+> import qualified Data.List.NonEmpty as NE
+> import Data.List
+>
+> import Debug.Trace
 
 
 > -- | Represents a lexed token
-> data Token
+> data SQLToken
 >     -- | A symbol (in ansi dialect) is one of the following
 >     --
 >     -- * multi char symbols <> \<= \>= != ||
@@ -90,13 +101,54 @@ directly without the separately testing lexing stage.
 >     -- | A block comment, \/* stuff *\/, includes the comment delimiters
 >     | BlockComment Text
 >
->       deriving (Eq,Show)
+>       deriving (Eq,Show, Ord)
 
 
+> type Parser = Parsec Void Text
+> type ParseError = ParseErrorBundle Text Void
+>
 
+> data WithPos a = WithPos
+>  { startPos :: SourcePos
+>  , endPos :: SourcePos
+>  , tokenVal :: a }
+>  deriving (Eq, Ord, Show)
+>  
+> newtype SQLTokenStream = SQLTokenStream { unSQLTokenStream :: [WithPos SQLToken] }
+>   deriving (Eq, Show, Semigroup)
+>
+> -- Discards positioning.
+> sqlTokenStreamAsList :: SQLTokenStream -> [SQLToken]
+> sqlTokenStreamAsList (SQLTokenStream l) = map tokenVal l
+> 
+> instance Stream SQLTokenStream where
+>   type Token SQLTokenStream = WithPos SQLToken
+>   type Tokens SQLTokenStream = [WithPos SQLToken]
+>
+>   tokenToChunk Proxy t = [t]
+>   tokensToChunk Proxy ts = ts
+>   chunkToTokens Proxy = id
+>   chunkLength Proxy = length
+>   chunkEmpty Proxy = null
+>   take1_ (SQLTokenStream []) = Nothing
+>   take1_ (SQLTokenStream (t:ts)) = Just (t, SQLTokenStream ts)
+>   takeN_ n (SQLTokenStream ts) | n <= 0 = Just ([], SQLTokenStream ts)
+>                                | null ts = Nothing
+>                                | otherwise = let (x, ts') = splitAt n ts in Just (x, SQLTokenStream ts')
+>   takeWhile_ f (SQLTokenStream ts) = let (x, ts') = span f ts in (x, SQLTokenStream ts')
+>   showTokens Proxy = intercalate "," . NE.toList . fmap (unpack . prettyToken ansi2011 . tokenVal)
+>   reachOffset o pst@PosState{} =
+>     case drop (o - pstateOffset pst) (unSQLTokenStream (pstateInput pst)) of
+>       [] -> ( pstateSourcePos pst --eof
+>             , "<missing input at eof>"
+>             , pst { pstateInput = SQLTokenStream [] })
+>       (x:xs) -> traceShowId ( startPos x
+>                 , "<missing input>"
+>                 , pst { pstateInput = SQLTokenStream (x:xs) })
+> 
 > -- | Pretty printing, if you lex a bunch of tokens, then pretty
 > -- print them, should should get back exactly the same string
-> prettyToken :: Dialect -> Token -> Text
+> prettyToken :: Dialect -> SQLToken -> Text
 > prettyToken _ (Symbol s) = s
 > prettyToken _ (Identifier Nothing t) = t
 > prettyToken _ (Identifier (Just (q1,q2)) t) = q1 <> t <> q2
@@ -108,7 +160,7 @@ directly without the separately testing lexing stage.
 > prettyToken _ (LineComment l) = l
 > prettyToken _ (BlockComment c) = c
 
-> prettyTokens :: Dialect -> [Token] -> Text
+> prettyTokens :: Dialect -> [SQLToken] -> Text
 > prettyTokens d ts = T.concat $ map (prettyToken d) ts
 
 TODO: try to make all parsers applicative only
@@ -123,7 +175,7 @@ TODO: try to make all parsers applicative only
 >                   -- in the source to use in error messages
 >                -> String
 >                   -- ^ the SQL source to lex
->                -> Either ParseError [((String,Pos,Pos),Token)]
+>                -> Either ParseError SQLTokenStream
 > lexSQL dialect fn' p src =
 >     let (l',c') = fromMaybe (1,1) p
 >         freshState = State { stateInput = T.pack src,
@@ -134,22 +186,20 @@ TODO: try to make all parsers applicative only
 >           pstateInput = T.pack src,
 >           pstateSourcePos = SourcePos {
 >               sourceName = fn',
->                 sourceLine = mkPos l',
->                 sourceColumn = mkPos c'},
+>               sourceLine = mkPos l',
+>               sourceColumn = mkPos c'},
 >             pstateTabWidth = defaultTabWidth,
 >             pstateLinePrefix = ""}
 >     in 
->       snd $ runParser' (many (sqlToken dialect) <* eof) freshState
+>       snd $ runParser' (SQLTokenStream <$> many (sqlToken dialect) <* eof) freshState
 
 >       
   
 
 > -- | parser for a sql token
-> sqlToken :: Dialect -> Parser ((String,Pos,Pos),Token)
+> sqlToken :: Dialect -> Parser (WithPos SQLToken)
 > sqlToken d = do
->     p' <- getParserState
->     let p = (sourceName spos,sourceLine spos, sourceColumn spos)
->         spos = pstateSourcePos (statePosState p')
+>     pstate <- getParserState
 
 The order of parsers is important: strings and quoted identifiers can
 start out looking like normal identifiers, so we try to parse these
@@ -158,16 +208,19 @@ symbols, so we try these before symbol. Numbers can start with a . so
 this is also tried before symbol (a .1 will be parsed as a number, but
 . otherwise will be parsed as a symbol).
 
->     (p,) <$> choice [sqlString d
->                     ,identifier d
->                     ,lineComment d
->                     ,blockComment d
->                     ,sqlNumber d
->                     ,positionalArg d
->                     ,dontParseEndBlockComment d
->                     ,prefixedVariable d
->                     ,symbol d
->                     ,sqlWhitespace d]
+>     tok <- choice [sqlString d
+>                   ,identifier d
+>                   ,lineComment d
+>                   ,blockComment d
+>                   ,sqlNumber d
+>                   ,positionalArg d
+>                   ,dontParseEndBlockComment d
+>                   ,prefixedVariable d
+>                   ,symbol d
+>                   ,sqlWhitespace d]
+>     epos <- getSourcePos
+>     let spos = pstateSourcePos (statePosState pstate)
+>     pure (WithPos spos epos tok)
 
 Parses identifiers:
 
@@ -177,7 +230,7 @@ u&"unicode quoted identifier"
 "quoted identifier "" with double quote char"
 `mysql quoted identifier`
 
-> identifier :: Dialect -> Parser Token
+> identifier :: Dialect -> Parser SQLToken
 > identifier d =
 >     choice
 >     [guard (diSyntaxFlavour d /= BigQuery) >> quotedIden
@@ -224,7 +277,7 @@ this can be moved to the dialect at some point
 
 use try because : and @ can be part of other things also
 
-> prefixedVariable :: Dialect -> Parser Token
+> prefixedVariable :: Dialect -> Parser SQLToken
 > prefixedVariable  d = try $ choice
 >     [PrefixedVariable <$> char ':' <*> identifierString
 >     ,guard (diSyntaxFlavour d == SQLServer) >>
@@ -233,7 +286,7 @@ use try because : and @ can be part of other things also
 >      PrefixedVariable <$> char '#' <*> identifierString
 >     ]
 
-> positionalArg :: Dialect -> Parser Token
+> positionalArg :: Dialect -> Parser SQLToken
 > positionalArg d =
 >   guard (diSyntaxFlavour d == Postgres) >>
 >   -- use try to avoid ambiguities with other syntax which starts with dollar
@@ -249,7 +302,7 @@ b'binary string'
 x'hexidecimal string'
 
 
-> sqlString :: Dialect -> Parser Token
+> sqlString :: Dialect -> Parser SQLToken
 > sqlString d = dollarString <|> csString <|> normalString
 >   where
 >     dollarString = do
@@ -309,7 +362,7 @@ the constant. Note that any leading plus or minus sign is not actually
 considered part of the constant; it is an operator applied to the
 constant.
 
-> sqlNumber :: Dialect -> Parser Token
+> sqlNumber :: Dialect -> Parser SQLToken
 > sqlNumber d =
 >     SqlNumber <$> completeNumber
 >     -- this is for definitely avoiding possibly ambiguous source
@@ -349,7 +402,7 @@ A symbol is an operator, or one of the misc symbols which include:
 The postgresql operator syntax allows a huge range of operators
 compared with ansi and other dialects
 
-> symbol :: Dialect -> Parser Token
+> symbol :: Dialect -> Parser SQLToken
 > symbol d  = Symbol <$> choice (concat
 >    [dots
 >    ,if (diSyntaxFlavour d == Postgres)
@@ -462,10 +515,10 @@ which allows the last character of a multi character symbol to be + or
 >         <*> option T.empty opMoreChars
 >        ]
 
-> sqlWhitespace :: Dialect -> Parser Token
+> sqlWhitespace :: Dialect -> Parser SQLToken
 > sqlWhitespace _ = Whitespace . T.pack <$> some (satisfy isSpace)
 
-> lineComment :: Dialect -> Parser Token
+> lineComment :: Dialect -> Parser SQLToken
 > lineComment _ = do
 >     _ <- try (string "--")
 >     let lineCommentEnd = char '\n' *> pure "\n" <|> eof *> pure ""
@@ -478,7 +531,7 @@ Try is used in the block comment for the two symbol bits because we
 want to backtrack if we read the first symbol but the second symbol
 isn't there.
 
-> blockComment :: Dialect -> Parser Token
+> blockComment :: Dialect -> Parser SQLToken
 > blockComment _ =
 >     (\s -> BlockComment $ T.concat ["/*",s]) <$>
 >     (try (string "/*") *> commentSuffix 0)
@@ -505,7 +558,7 @@ in them (which is a stupid thing to do). In other cases, the user
 should write * / instead (I can't think of any cases when this would
 be valid syntax though).
 
-> dontParseEndBlockComment :: Dialect -> Parser Token
+> dontParseEndBlockComment :: Dialect -> Parser SQLToken
 > dontParseEndBlockComment _ =
 >     -- don't use try, then it should commit to the error
 >     try (string "*/") *> fail "comment end without comment start"
@@ -539,13 +592,13 @@ successes. I don't think it succeeds this test at the moment
 > -- | Utility function to tell you if a list of tokens
 > -- will pretty print then lex back to the same set of tokens.
 > -- Used internally, might be useful for generating SQL via lexical tokens.
-> tokenListWillPrintAndLex :: Dialect -> [Token] -> Bool
+> tokenListWillPrintAndLex :: Dialect -> [SQLToken] -> Bool
 > tokenListWillPrintAndLex _ [] = True
 > tokenListWillPrintAndLex _ [_] = True
 > tokenListWillPrintAndLex d (a:b:xs) =
 >     tokensWillPrintAndLex d a b && tokenListWillPrintAndLex d (b:xs)
 
-> tokensWillPrintAndLex :: Dialect -> Token -> Token -> Bool
+> tokensWillPrintAndLex :: Dialect -> SQLToken -> SQLToken -> Bool
 > tokensWillPrintAndLex d a b
 
 a : followed by an identifier character will look like a host param

@@ -1,5 +1,6 @@
 
 > {-# LANGUAGE CPP #-}
+> {-# LANGUAGE OverloadedStrings #-}
 > -- | These is the pretty printing functions, which produce SQL
 > -- source from ASTs. The code attempts to format the output in a
 > -- readable way.
@@ -26,6 +27,7 @@ which have been changed to try to improve the layout of the output.
 >                          brackets,hcat)
 > import Data.Maybe (maybeToList, catMaybes)
 > import Data.List (intercalate)
+> import Data.Text (unpack)
 
 > -- | Convert a query expr ast to concrete syntax.
 > prettyQueryExpr :: Dialect -> QueryExpr -> String
@@ -47,9 +49,9 @@ which have been changed to try to improve the layout of the output.
 = scalar expressions
 
 > scalarExpr :: Dialect -> ScalarExpr -> Doc
-> scalarExpr _ (StringLit s e t) = text s <> text t <> text e
+> scalarExpr _ (StringLit s e t) = text (unpack s) <> text (unpack t) <> text (unpack e)
 
-> scalarExpr _ (NumLit s) = text s
+> scalarExpr _ (NumLit s) = text (unpack s)
 > scalarExpr d (IntervalLit s v f t) =
 >     text "interval"
 >     <+> me (\x -> text $ case x of
@@ -63,8 +65,8 @@ which have been changed to try to improve the layout of the output.
 > scalarExpr _ Parameter = text "?"
 > scalarExpr _ (PositionalArg n) = text $ "$" ++ show n
 > scalarExpr _ (HostParameter p i) =
->     text p
->     <+> me (\i' -> text "indicator" <+> text i') i
+>     text (unpack p)
+>     <+> me (\i' -> text "indicator" <+> text (unpack i')) i
 
 > scalarExpr d (App f es nr) = names f <> parens (commaSep (map (scalarExpr d) es) <> nullsRespect nr)
 
@@ -125,7 +127,7 @@ which have been changed to try to improve the layout of the output.
 > scalarExpr d (SpecialOpK nm fs as) =
 >     names nm <> parens (sep $ catMaybes
 >         (fmap (scalarExpr d) fs
->          : map (\(n,e) -> Just (text n <+> scalarExpr d e)) as))
+>          : map (\(n,e) -> Just (text (unpack n) <+> scalarExpr d e)) as))
 
 > scalarExpr d (PrefixOp f e) = names f <+> scalarExpr d e
 > scalarExpr d (PostfixOp f e) = scalarExpr d e <+> names f
@@ -163,7 +165,7 @@ which have been changed to try to improve the layout of the output.
 >                                ,typeName tn])
 
 > scalarExpr _ (TypedLit tn s) =
->     typeName tn <+> quotes (text s)
+>     typeName tn <+> quotes (text (unpack s))
 
 > scalarExpr d (SubQueryExpr ty qe) =
 >     (case ty of
@@ -238,7 +240,7 @@ which have been changed to try to improve the layout of the output.
 >     vcat $ map comment cmt ++ [scalarExpr d v]
 
 > scalarExpr _ (OdbcLiteral t s) =
->     text "{" <> lt t <+> quotes (text s) <> text "}"
+>     text "{" <> lt t <+> quotes (text (unpack s)) <> text "}"
 >   where
 >     lt OLDate = text "d"
 >     lt OLTime = text "t"
@@ -248,9 +250,9 @@ which have been changed to try to improve the layout of the output.
 >     text "{fn" <+> scalarExpr d e <> text "}"
 
 > unname :: Name -> String
-> unname (Name Nothing n) = n
+> unname (Name Nothing n) = unpack n
 > unname (Name (Just (s,e)) n) =
->     s ++ n ++ e
+>     (unpack s ++ unpack n ++ unpack e)
 
 > unnames :: [Name] -> String
 > unnames ns = intercalate "." $ map unname ns
@@ -261,8 +263,8 @@ which have been changed to try to improve the layout of the output.
 > nullsRespect Nothing = mempty
 
 > name :: Name -> Doc
-> name (Name Nothing n) = text n
-> name (Name (Just (s,e)) n) = text s <> text n <> text e
+> name (Name Nothing n) = text (unpack n)
+> name (Name (Just (s,e)) n) = text (unpack s) <> text (unpack n) <> text (unpack e)
 
 > names :: [Name] -> Doc
 > names ns = hcat $ punctuate (text ".") $ map name ns
@@ -316,7 +318,7 @@ which have been changed to try to improve the layout of the output.
 
 > intervalTypeField :: IntervalTypeField -> Doc
 > intervalTypeField (Itf n p) =
->     text n
+>     text (unpack n)
 >     <+> me (\(x,x1) ->
 >              parens (text (show x)
 >                      <+> me (\y -> (sep [comma,text (show y)])) x1)) p
@@ -818,7 +820,7 @@ which have been changed to try to improve the layout of the output.
 > me = maybe empty
 
 > comment :: Comment -> Doc
-> comment (BlockComment str) = text "/*" <+> text str <+> text "*/"
+> comment (BlockComment str) = text "/*" <+> text (unpack str) <+> text "*/"
 
 > texts :: [String] -> Doc
 > texts ts = sep $ map text ts

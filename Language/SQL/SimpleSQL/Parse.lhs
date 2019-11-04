@@ -233,17 +233,18 @@ converts the error return to the nice wrapper
 >     case L.lexSQL d f (Just (l,c)) src of
 >       Left _ -> error "lexer" -- FIXME- convert from lexer error to parser error
 >       Right lexed -> do
->         let freshState = State { stateInput = lexed,
+>         let freshState = State { stateInput = lexed',
 >                                  stateOffset = 0,
 >                                  statePosState = freshPosState}
 >             freshPosState = PosState { pstateOffset = 0,
->                                        pstateInput = lexed,
+>                                        pstateInput = lexed',
 >                                        pstateSourcePos = SourcePos {
 >                                          sourceName = f,
 >                                          sourceLine = mkPos l,
 >                                          sourceColumn = mkPos c},
 >                                        pstateTabWidth = defaultTabWidth,
 >                                        pstateLinePrefix = ""}
+>             lexed' = L.SQLTokenStream $ filter (not . L.isWhitespace . L.tokenVal) (L.unSQLTokenStream lexed)
 >         snd $ runReader (runParserT' (parser <* eof) freshState) d
 
 = Public API
@@ -1600,8 +1601,8 @@ and union, etc..
 > queryExpr :: Parser QueryExpr
 > queryExpr = E.makeExprParser term' ops
 >   where
->     term' = choice [with, values,table, select, try parensQuery]
->     ops = [[E.InfixN setOp]]
+>     term' = choice [with, values, table, select, try parensQuery]
+>     ops = [[E.InfixL setOp]]
 >     select = keyword_ "select" >>
 >         mkSelect
 >         <$> option SQDefault duplicates

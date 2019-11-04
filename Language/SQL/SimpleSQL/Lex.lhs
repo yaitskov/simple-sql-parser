@@ -32,6 +32,7 @@ directly without the separately testing lexing stage.
 >     ,lexSQL
 >     ,initialPos
 >     ,sqlTokenStreamAsList
+>     ,isWhitespace
 >     ) where
 
 > import Language.SQL.SimpleSQL.Dialect
@@ -159,6 +160,12 @@ directly without the separately testing lexing stage.
 > prettyToken _ (Whitespace t) = t
 > prettyToken _ (LineComment l) = l
 > prettyToken _ (BlockComment c) = c
+>
+> isWhitespace :: SQLToken -> Bool
+> isWhitespace (Whitespace _) = True
+> isWhitespace (LineComment _) = True
+> isWhitespace (BlockComment _) = True
+> isWhitespace _ = False
 
 > prettyTokens :: Dialect -> [SQLToken] -> Text
 > prettyTokens d ts = T.concat $ map (prettyToken d) ts

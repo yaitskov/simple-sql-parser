@@ -62,6 +62,7 @@ which have been changed to try to improve the layout of the output.
 >     <+> me (\x -> text "to" <+> intervalTypeField x) t
 > scalarExpr _ (Iden i) = names i
 > scalarExpr _ Star = text "*"
+> scalarExpr d (ExceptColumns sexp columns) = scalarExpr d sexp <+> text "EXCEPT" <+> parens (commaSep (map names columns))
 > scalarExpr _ Parameter = text "?"
 > scalarExpr _ (PositionalArg n) = text $ "$" ++ show n
 > scalarExpr _ (HostParameter p i) =
@@ -373,7 +374,6 @@ which have been changed to try to improve the layout of the output.
 > queryExpr d (QEComment cmt v) =
 >     vcat $ map comment cmt ++ [queryExpr d v]
 > queryExpr d (QParens p) = parens (queryExpr d p) --if you like your parentheses, you can keep your parentheses
-
 
 > alias :: Alias -> Doc
 > alias (Alias nm cols) =

@@ -180,12 +180,13 @@ fixing them in the syntax but leaving them till the semantic checking
 > {-# LANGUAGE FlexibleInstances #-} 
 > -- | This is the module with the parser functions.
 > module Language.SQL.SimpleSQL.Parse
->     {-(parseQueryExpr
+>     (parseQueryExpr
 >     ,parseScalarExpr
 >     ,parseStatement
 >     ,parseStatements
->     ,ParseError
->     )-}
+>     ,ParseErrors
+>     ,L.SQLTokenStream(..)
+>     )
 > where
 
 > import Control.Monad (guard, void)
@@ -212,7 +213,7 @@ fixing them in the syntax but leaving them till the semantic checking
 
 
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
-> type ParseError = ParseErrorBundle L.SQLTokenStream Void
+> type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
 
 This helper function takes the parser given and:
 
@@ -226,7 +227,7 @@ converts the error return to the nice wrapper
 >           -> FilePath
 >           -> Maybe (Int,Int)
 >           -> String
->           -> Either ParseError a
+>           -> Either ParseErrors a
 > wrapParse parser d f p src = do
 >     let (l,c) = fromMaybe (1,1) p
 >     case L.lexSQL d f (Just (l,c)) src of
@@ -257,7 +258,7 @@ converts the error return to the nice wrapper
 >                   -- in the source to use in error messages
 >                -> String
 >                   -- ^ the SQL source to parse
->                -> Either ParseError QueryExpr
+>                -> Either ParseErrors QueryExpr
 > parseQueryExpr = wrapParse topLevelQueryExpr
 
 > -- | Parses a statement, trailing semicolon optional.
@@ -270,7 +271,7 @@ converts the error return to the nice wrapper
 >                   -- in the source to use in error messages
 >                -> String
 >                   -- ^ the SQL source to parse
->                -> Either ParseError Statement
+>                -> Either ParseErrors Statement
 > parseStatement = wrapParse topLevelStatement
 
 
@@ -285,7 +286,7 @@ converts the error return to the nice wrapper
 >                    -- in the source to use in error messages
 >                 -> String
 >                    -- ^ the SQL source to parse
->                 -> Either ParseError [Statement]
+>                 -> Either ParseErrors [Statement]
 > parseStatements = wrapParse statements 
 
 > -- | Parses a scalar expression.
@@ -298,7 +299,7 @@ converts the error return to the nice wrapper
 >                    -- in the source to use in error messages
 >                 -> String
 >                    -- ^ the SQL source to parse
->                 -> Either ParseError ScalarExpr
+>                 -> Either ParseErrors ScalarExpr
 > parseScalarExpr = wrapParse scalarExpr
 
 ------------------------------------------------
@@ -2197,6 +2198,18 @@ It is only allowed when all the strings are quoted with ' atm.
 >       (Nothing, L.Symbol p) -> Just p
 >       (Just s, L.Symbol p) | s == p -> Just p
 >       _ -> Nothing)
+>
+> spaceConsumer :: Parser ()
+> spaceConsumer = many whitespaceTok >> pure ()
+>
+>
+> whitespaceTok :: Parser ()
+> whitespaceTok = mytoken (\tok ->
+>                            case tok of
+>                              L.Whitespace _ -> Just ()
+>                              L.LineComment _ -> Just ()
+>                              L.BlockComment _ -> Just ()
+>                              _ -> Nothing)
 
 > identifierTok :: [T.Text] -> Parser (Maybe (T.Text, T.Text), T.Text)
 > identifierTok blackList = do
@@ -2207,7 +2220,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >                  L.Identifier q@(Just ("`","`")) p | diSyntaxFlavour d `elem` [BigQuery] -> Just (q,p)
 >                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
 >                  L.Identifier q p | T.toLower p `notElem` blackList -> Just (q,p)
->                  _ -> Nothing)
+>                  _ -> Nothing) <* spaceConsumer
 
 > unquotedIdentifierTok :: [T.Text] -> Maybe T.Text -> Parser T.Text
 > unquotedIdentifierTok blackList kw = 
@@ -2219,7 +2232,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >
 > mytoken :: (L.SQLToken -> Maybe a) -> Parser a
 > mytoken f = token (\tokLoc ->
->                       f (L.tokenVal tokLoc)) mempty
+>                       f (L.tokenVal tokLoc)) mempty <* spaceConsumer
 >
 > unsignedInteger :: Parser Integer
 > unsignedInteger = do

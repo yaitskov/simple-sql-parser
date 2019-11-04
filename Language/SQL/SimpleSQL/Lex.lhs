@@ -22,7 +22,7 @@ directly without the separately testing lexing stage.
 > {-# LANGUAGE TypeFamilies #-}
 > {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 > module Language.SQL.SimpleSQL.Lex
->  {-   (SQLToken(..)
+>     (SQLToken(..)
 >     ,SQLTokenStream(..)
 >     ,WithPos(..)
 >     ,prettyToken
@@ -32,7 +32,7 @@ directly without the separately testing lexing stage.
 >     ,lexSQL
 >     ,initialPos
 >     ,sqlTokenStreamAsList
->     )-} where
+>     ) where
 
 > import Language.SQL.SimpleSQL.Dialect
 

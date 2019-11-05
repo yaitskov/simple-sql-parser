@@ -57,18 +57,6 @@ Test for the lexer
 >        ,("5e-3", [SqlNumber "5e-3"])
 >        ,("10.2", [SqlNumber "10.2"])
 >        ,("10.2e7", [SqlNumber "10.2e7"])]
->     -- whitespace
->     ++ concat [[([a],[Whitespace $ T.pack [a]])
->                ,([a,b], [Whitespace $ T.pack [a,b]])]
->               | a <- " \n\t", b <- " \n\t"]
->     -- line comment
->     ++ map (\c -> (c, [LineComment $ T.pack c]))
->        ["--", "-- ", "-- this is a comment", "-- line com\n"]
->     -- block comment
->     ++ map (\c -> (c, [BlockComment $ T.pack c]))
->        ["/**/", "/* */","/* this is a comment */"
->        ,"/* this *is/ a comment */"
->        ]
 
 > ansiLexerTests :: TestItem
 > ansiLexerTests = Group "ansiLexerTests" $
@@ -83,7 +71,7 @@ Test for the lexer
 >     ,Group "ansiadhoclexertests" $
 >        map (\(n, s) -> LexTest ansi2011 n s)
 >        [("", [])
->        ,("-- line com\nstuff", [LineComment "-- line com\n",Identifier Nothing "stuff"])
+>        ,("-- line com\nstuff", [Identifier Nothing "stuff"])
 >        ] ++
 >        [-- want to make sure this gives a parse error
 >         LexFails ansi2011 "*/"
@@ -150,7 +138,6 @@ assurance.
 >        ,("e'this '' quote'", [SqlString "e'" "'" "this '' quote"])
 >        ,("e'this \\' quote'", [SqlString "e'" "'" "this \\' quote"])
 >        ,("'not this \\' quote", [SqlString "'" "'" "not this \\"
->                                 ,Whitespace " "
 >                                 ,Identifier Nothing "quote"])
 >        ,("$$ string 1 $$", [SqlString "$$" "$$" " string 1 "])
 >        ,("$$ string $ 2 $$", [SqlString "$$" "$$" " string $ 2 "])
@@ -167,18 +154,6 @@ assurance.
 >        ,("5e-3", [SqlNumber "5e-3"])
 >        ,("10.2", [SqlNumber "10.2"])
 >        ,("10.2e7", [SqlNumber "10.2e7"])]
->     -- whitespace
->     ++ concat [[([a],[Whitespace $ T.pack [a]])
->                ,([a,b], [Whitespace $ T.pack [a,b]])]
->               | a <- " \n\t", b <- " \n\t"]
->     -- line comment
->     ++ map (\c -> (c, [LineComment $ T.pack c]))
->        ["--", "-- ", "-- this is a comment", "-- line com\n"]
->     -- block comment
->     ++ map (\c -> (c, [BlockComment $ T.pack c]))
->        ["/**/", "/* */","/* this is a comment */"
->        ,"/* this *is/ a comment */"
->        ]
 
 An operator name is a sequence of up to NAMEDATALEN-1 (63 by default) characters from the following list:
 
@@ -280,11 +255,11 @@ the + or -.
 >     ]
 >  where
 >    edgeCaseCommentOps =
->      [ (x ++ "/*<test*/", [Symbol $ T.pack x, BlockComment "/*<test*/"])
+>      [ (x ++ "/*<test*/", [Symbol $ T.pack x])
 >      | x <- eccops
 >      , not (last x == '*')
 >      ] ++
->      [ (x ++ "--<test", [Symbol $ T.pack x, LineComment "--<test"])
+>      [ (x ++ "--<test", [Symbol $ T.pack x])
 >      | x <- eccops
 >      , not (last x == '-')
 >      ]
@@ -295,10 +270,10 @@ the + or -.
 >      | x <- somePostgresOpsWhichWontAddTrailingPlusMinus 2
 >      ]
 >    edgeCasePlusMinusComments =
->      [("---", [LineComment "---"])
->      ,("+--", [Symbol "+", LineComment "--"])
->      ,("-/**/", [Symbol "-", BlockComment "/**/"])
->      ,("+/**/", [Symbol "+", BlockComment "/**/"])
+>      [("---", [])
+>      ,("+--", [Symbol "+"])
+>      ,("-/**/", [Symbol "-"])
+>      ,("+/**/", [Symbol "+"])
 >      ]
 
 

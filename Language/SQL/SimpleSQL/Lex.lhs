@@ -32,19 +32,18 @@ directly without the separately testing lexing stage.
 >     ,lexSQL
 >     ,initialPos
 >     ,sqlTokenStreamAsList
->     ,isWhitespace
 >     ) where
 
 > import Language.SQL.SimpleSQL.Dialect
 
 > import Text.Megaparsec (option,manyTill
 >                    ,try,oneOf,(<|>),choice,eof
->                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), initialPos, getSourcePos
->                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..)
+>                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), getSourcePos, initialPos
+>                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..),single
 >                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..))
-> import Text.Megaparsec.Char.Lexer (decimal)
-> import Text.Megaparsec.Char (string, char)
-> import Language.SQL.SimpleSQL.Combinators
+> import qualified Text.Megaparsec.Char.Lexer as Lex
+> import Text.Megaparsec.Char (string, char, space1)
+> --import Language.SQL.SimpleSQL.Combinators
 > import Control.Applicative hiding ((<|>), many)
 > import Data.Char
 > import Control.Monad
@@ -56,9 +55,6 @@ directly without the separately testing lexing stage.
 > import qualified Data.List.NonEmpty as NE
 > import Data.List
 >
-> import Debug.Trace
-
-
 > -- | Represents a lexed token
 > data SQLToken
 >     -- | A symbol (in ansi dialect) is one of the following
@@ -89,18 +85,6 @@ directly without the separately testing lexing stage.
 >     -- | A number literal (integral or otherwise), stored in original format
 >     -- unchanged
 >     | SqlNumber Text
->
->     -- | Whitespace, one or more of space, tab or newline.
->     | Whitespace Text
->
->     -- | A commented line using --, contains every character starting with the
->     -- \'--\' and including the terminating newline character if there is one
->     -- - this will be missing if the last line in the source is a line comment
->     -- with no trailing newline
->     | LineComment Text
->
->     -- | A block comment, \/* stuff *\/, includes the comment delimiters
->     | BlockComment Text
 >
 >       deriving (Eq,Show, Ord)
 
@@ -143,9 +127,9 @@ directly without the separately testing lexing stage.
 >       [] -> ( pstateSourcePos pst --eof
 >             , "<missing input at eof>"
 >             , pst { pstateInput = SQLTokenStream [] })
->       (x:xs) -> traceShowId ( startPos x
+>       (x:xs) -> ( startPos x
 >                 , "<missing input>"
->                 , pst { pstateInput = SQLTokenStream (x:xs) })
+>                 , pst { pstateInput = SQLTokenStream (x: (x `seq` xs)) })
 > 
 > -- | Pretty printing, if you lex a bunch of tokens, then pretty
 > -- print them, should should get back exactly the same string
@@ -157,16 +141,7 @@ directly without the separately testing lexing stage.
 > prettyToken _ (PositionalArg p) = T.cons '$' (T.pack (show p))
 > prettyToken _ (SqlString s e t) = s <> t <> e
 > prettyToken _ (SqlNumber r) = r
-> prettyToken _ (Whitespace t) = t
-> prettyToken _ (LineComment l) = l
-> prettyToken _ (BlockComment c) = c
 >
-> isWhitespace :: SQLToken -> Bool
-> isWhitespace (Whitespace _) = True
-> isWhitespace (LineComment _) = True
-> isWhitespace (BlockComment _) = True
-> isWhitespace _ = False
-
 > prettyTokens :: Dialect -> [SQLToken] -> Text
 > prettyTokens d ts = T.concat $ map (prettyToken d) ts
 
@@ -198,7 +173,7 @@ TODO: try to make all parsers applicative only
 >             pstateTabWidth = defaultTabWidth,
 >             pstateLinePrefix = ""}
 >     in 
->       snd $ runParser' (SQLTokenStream <$> many (sqlToken dialect) <* eof) freshState
+>       snd $ runParser' (SQLTokenStream <$> (sc *> many (sqlToken dialect) <* eof)) freshState
 
 >       
   
@@ -217,14 +192,11 @@ this is also tried before symbol (a .1 will be parsed as a number, but
 
 >     tok <- choice [sqlString d
 >                   ,identifier d
->                   ,lineComment d
->                   ,blockComment d
->                   ,sqlNumber d
+>                   ,try (sqlNumber d)
 >                   ,positionalArg d
->                   ,dontParseEndBlockComment d
 >                   ,prefixedVariable d
 >                   ,symbol d
->                   ,sqlWhitespace d]
+>                   ] <* sc
 >     epos <- getSourcePos
 >     let spos = pstateSourcePos (statePosState pstate)
 >     pure (WithPos spos epos tok)
@@ -297,7 +269,7 @@ use try because : and @ can be part of other things also
 > positionalArg d =
 >   guard (diSyntaxFlavour d == Postgres) >>
 >   -- use try to avoid ambiguities with other syntax which starts with dollar
->   PositionalArg <$> try (char '$' *> decimal)
+>   PositionalArg <$> try (char '$' *> Lex.decimal)
 
 
 Parse a SQL string. Examples:
@@ -370,36 +342,39 @@ considered part of the constant; it is an operator applied to the
 constant.
 
 > sqlNumber :: Dialect -> Parser SQLToken
-> sqlNumber d =
+> sqlNumber _ =
 >     SqlNumber <$> completeNumber
 >     -- this is for definitely avoiding possibly ambiguous source
->     <* choice [-- special case to allow e.g. 1..2
+>     {-<* choice [-- special case to allow e.g. 1..2
 >                guard (diSyntaxFlavour d == Postgres)
 >                *> (void $ lookAhead $ try $ string "..")
 >                   <|> void (notFollowedBy (oneOf ['e','E','.']))
 >               ,notFollowedBy (oneOf ['e','E','.'])
->               ]
+>               ]-}
 >   where
->     completeNumber =
->       (int <??> (pp dot <??.> pp int)
->       -- try is used in case we read a dot
->       -- and it isn't part of a number
->       -- if there are any following digits, then we commit
->       -- to it being a number and not something else
->       <|> try ((<>) <$> dot <*> int))
->       <??> pp expon
-
->     int = T.pack . show <$> (decimal :: Parser Int)
->     -- make sure we don't parse two adjacent dots in a number
->     -- special case for postgresql, we backtrack if we see two adjacent dots
->     -- to parse 1..2, but in other dialects we commit to the failure
->     dot = let p = chunk "." <* notFollowedBy (char '.')
->           in if (diSyntaxFlavour d == Postgres)
->              then try p
->              else p
->     expon = T.cons <$> oneOf ['e','E'] <*> sInt
->     sInt = (<>) <$> option "" (string "+" <|> string "-") <*> int
->     pp = (<$$> (<>))
+>     completeNumber :: Parser Text
+>     completeNumber = do
+>       let digits = takeWhile1P (Just "digit") isDigit
+>           dot = T.singleton <$> single '.'
+>           exponent' = do
+>              e <- single 'e' <|> single 'E'
+>              sign <- optE neg
+>              exp' <- digits
+>              pure (e `T.cons` sign <> exp')
+>           optE = option ""
+>           neg = T.singleton <$> single '-'
+>           decDot = do
+>             a <- digits
+>             b <- optE dot
+>             c <- optE digits
+>             pure (T.concat [a,b,c])
+>           docDec = do
+>             a <- dot
+>             b <- digits
+>             pure (T.concat [a,b])
+>       mantissa <- decDot <|> docDec
+>       exp' <- optE exponent'
+>       pure (T.concat [mantissa,exp'])
 
 Symbols
 
@@ -522,54 +497,8 @@ which allows the last character of a multi character symbol to be + or
 >         <*> option T.empty opMoreChars
 >        ]
 
-> sqlWhitespace :: Dialect -> Parser SQLToken
-> sqlWhitespace _ = Whitespace . T.pack <$> some (satisfy isSpace)
-
-> lineComment :: Dialect -> Parser SQLToken
-> lineComment _ = do
->     _ <- try (string "--")
->     let lineCommentEnd = char '\n' *> pure "\n" <|> eof *> pure ""
->     commentContents <- manyTill anySingle (lookAhead lineCommentEnd)
->     endComment <- lineCommentEnd 
->     pure (LineComment ("--" <> T.pack commentContents <> endComment))
-
-
-Try is used in the block comment for the two symbol bits because we
-want to backtrack if we read the first symbol but the second symbol
-isn't there.
-
-> blockComment :: Dialect -> Parser SQLToken
-> blockComment _ =
->     (\s -> BlockComment $ T.concat ["/*",s]) <$>
->     (try (string "/*") *> commentSuffix 0)
->   where
->     commentSuffix :: Int -> Parser Text
->     commentSuffix n = do
->       -- read until a possible end comment or nested comment
->       x <- takeWhileP (Just "commented token") (\e -> e /= '/' && e /= '*')
->       choice [-- close comment: if the nesting is 0, done
->               -- otherwise recurse on commentSuffix
->               try (string "*/") *> let t = T.concat [x,"*/"]
->                                    in if n == 0
->                                       then return t
->                                       else (\s -> T.concat [t,s]) <$> commentSuffix (n - 1)
->               -- nested comment, recurse
->              ,try (string "/*") *> ((\s -> T.concat [x,"/*",s]) <$> commentSuffix (n + 1))
->               -- not an end comment or nested comment, continue
->              ,(\c s -> x <> T.singleton c <> s) <$> anySingle <*> commentSuffix n]
-
-
-This is to improve user experience: provide an error if we see */
-outside a comment. This could potentially break postgres ops with */
-in them (which is a stupid thing to do). In other cases, the user
-should write * / instead (I can't think of any cases when this would
-be valid syntax though).
-
-> dontParseEndBlockComment :: Dialect -> Parser SQLToken
-> dontParseEndBlockComment _ =
->     -- don't use try, then it should commit to the error
->     try (string "*/") *> fail "comment end without comment start"
-
+> sc :: Parser ()
+> sc = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "/*" "*/")
 
 Some helper combinators
 
@@ -638,16 +567,6 @@ be different when the other dialects are done properly
 >                     ,("||","||")
 >                     ,("<",">=")
 >                     ] = False
-
-two whitespaces will be combined
-
->    | Whitespace {} <- a
->    , Whitespace {} <- b = False
-
-line comment without a newline at the end will eat the next token
-
->    | LineComment {} <- a
->    , checkLastAChar (/='\n') = False
 
 check the last character of the first token and the first character of
 the second token forming a comment start or end symbol
@@ -726,11 +645,6 @@ two numbers next to eachother will fail or be absorbed
 >     checkFirstBChar f = case T.uncons prettyb of
 >                           Just (b', _) -> f b'
 >                           Nothing -> False
->     checkLastAChar f = case T.unsnoc prettya of
->                           Just (_, la') -> f la' 
->                           Nothing -> False
-
-
 
 
 TODO:

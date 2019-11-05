@@ -198,18 +198,20 @@ fixing them in the syntax but leaving them till the semantic checking
 > import Data.Char (isDigit)
 > import qualified Data.Text as T
 > import qualified Data.Text.Read as T
-> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT'
->                        ,option,between,sepBy,sepBy1,ParsecT
+> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
+>                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
 >                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
->                        ,option,optional,ParseErrorBundle(..)
+>                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
 >                        ,(<?>))
 > import Data.List (sort,groupBy)
 > import Data.Function (on)
+> import qualified Data.Set as S
 > import Language.SQL.SimpleSQL.Syntax
 > import Language.SQL.SimpleSQL.Combinators
 > import Language.SQL.SimpleSQL.Dialect
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
+> import qualified Data.List.NonEmpty as NE
 
 
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
@@ -230,21 +232,45 @@ converts the error return to the nice wrapper
 >           -> Either ParseErrors a
 > wrapParse parser d f p src = do
 >     let (l,c) = fromMaybe (1,1) p
+>         convertError :: SourcePos -> ParseError T.Text Void -> ParseError L.SQLTokenStream Void
+>         convertError spos (TrivialError a b c') = TrivialError a b' c''
+>           where
+>             b' = fmap convErrorItem b
+>             c'' = S.map convErrorItem c'
+>             convErrorItem :: ErrorItem (Token T.Text) -> ErrorItem (Token L.SQLTokenStream)
+>             convErrorItem (Tokens ts) = Tokens ((L.WithPos spos spos (L.Symbol (T.pack (NE.toList ts)))) NE.:| [])
+>             convErrorItem (Label la) = Label la
+>             convErrorItem EndOfInput = EndOfInput
+>         convertError _ (FancyError a b) = FancyError a (S.map convErrorFancy b)
+>           where
+>             convErrorFancy e = case e of
+>               ErrorFail s -> ErrorFail s
+>               ErrorIndentation o s1 s2 -> ErrorIndentation o s1 s2
+>               ErrorCustom _ -> error "impossible- unused custom error type"
+>         convertErrors errs = let spos = pstateSourcePos (bundlePosState errs) in
+>           ParseErrorBundle { bundleErrors = NE.map (convertError spos) (bundleErrors errs)
+>                            , bundlePosState = PosState { pstateInput = L.SQLTokenStream []
+>                                                        , pstateOffset = 1
+>                                                        , pstateSourcePos = spos
+>                                                        , pstateTabWidth = pstateTabWidth (bundlePosState errs)
+>                                                        , pstateLinePrefix = pstateLinePrefix (bundlePosState errs)
+>                                                        }
+>           
+> }
 >     case L.lexSQL d f (Just (l,c)) src of
->       Left _ -> error "lexer" -- FIXME- convert from lexer error to parser error
+>       Left err -> Left (convertErrors err)
 >       Right lexed -> do
->         let freshState = State { stateInput = lexed',
+>         let freshState = State { stateInput = lexed,
 >                                  stateOffset = 0,
 >                                  statePosState = freshPosState}
 >             freshPosState = PosState { pstateOffset = 0,
->                                        pstateInput = lexed',
+>                                        pstateInput = lexed,
 >                                        pstateSourcePos = SourcePos {
 >                                          sourceName = f,
 >                                          sourceLine = mkPos l,
 >                                          sourceColumn = mkPos c},
 >                                        pstateTabWidth = defaultTabWidth,
 >                                        pstateLinePrefix = ""}
->             lexed' = L.SQLTokenStream $ filter (not . L.isWhitespace . L.tokenVal) (L.unSQLTokenStream lexed)
 >         snd $ runReader (runParserT' (parser <* eof) freshState) d
 
 = Public API
@@ -341,21 +367,24 @@ u&"example quoted"
 > name :: Parser Name
 > name = do
 >     d <- getDialect
->     uncurry Name <$> identifierTok (blacklist d)
+>     (uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")
 >
 > getDialect :: Parser Dialect
 > getDialect = ask
 
 todo: replace (:[]) with a named function all over
 
-> names :: Parser [Name]
+> {-names :: Parser [Name]
 > names = reverse <$> (((:[]) <$> name) <??*> anotherName)
 >   -- can't use a simple chain here since we
 >   -- want to wrap the . + name in a try
 >   -- this will change when this is left factored
 >   where
 >     anotherName :: Parser ([Name] -> [Name])
->     anotherName = try ((:) <$> (symbol "." *> name))
+>     anotherName = try ((:) <$> (symbol "." *> name))-}
+>
+> names :: Parser [Name]
+> names = sepBy1 name (symbol ".")
 
 = Type Names
 
@@ -2226,17 +2255,6 @@ It is only allowed when all the strings are quoted with ' atm.
 >       (Just s, L.Symbol p) | s == p -> Just p
 >       _ -> Nothing)
 >
-> spaceConsumer :: Parser ()
-> spaceConsumer = many whitespaceTok >> pure ()
->
->
-> whitespaceTok :: Parser ()
-> whitespaceTok = mytoken (\tok ->
->                            case tok of
->                              L.Whitespace _ -> Just ()
->                              L.LineComment _ -> Just ()
->                              L.BlockComment _ -> Just ()
->                              _ -> Nothing)
 
 > identifierTok :: [T.Text] -> Parser (Maybe (T.Text, T.Text), T.Text)
 > identifierTok blackList = do
@@ -2247,7 +2265,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >                  L.Identifier q@(Just ("`","`")) p | diSyntaxFlavour d `elem` [BigQuery] -> Just (q,p)
 >                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
 >                  L.Identifier q p | T.toLower p `notElem` blackList -> Just (q,p)
->                  _ -> Nothing) <* spaceConsumer
+>                  _ -> Nothing)
 
 > unquotedIdentifierTok :: [T.Text] -> Maybe T.Text -> Parser T.Text
 > unquotedIdentifierTok blackList kw = 
@@ -2259,7 +2277,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >
 > mytoken :: (L.SQLToken -> Maybe a) -> Parser a
 > mytoken f = token (\tokLoc ->
->                       f (L.tokenVal tokLoc)) mempty <* spaceConsumer
+>                       f (L.tokenVal tokLoc)) mempty
 >
 > unsignedInteger :: Parser Integer
 > unsignedInteger = do

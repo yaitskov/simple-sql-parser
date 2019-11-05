@@ -109,7 +109,7 @@ order on the generated documentation.
 
 
 > toTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String
@@ -132,7 +132,7 @@ order on the generated documentation.
 >                                    expected got'
 
 > toPTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String
@@ -152,7 +152,7 @@ order on the generated documentation.
 
 
 > toFTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String

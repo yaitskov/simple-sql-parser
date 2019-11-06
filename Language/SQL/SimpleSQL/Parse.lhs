@@ -200,7 +200,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Data.Text.Read as T
 > import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
 >                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
->                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
+>                        ,try,many,some,(<|>),choice,eof,MonadParsec(..),errorBundlePretty
 >                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
 >                        ,(<?>))
 > import Data.List (sort,groupBy)
@@ -212,7 +212,6 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
 > import qualified Data.List.NonEmpty as NE
-
 
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
 > type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
@@ -232,9 +231,10 @@ converts the error return to the nice wrapper
 >           -> Either ParseErrors a
 > wrapParse parser d f p src = do
 >     let (l,c) = fromMaybe (1,1) p
->         convertError :: SourcePos -> ParseError T.Text Void -> ParseError L.SQLTokenStream Void
->         convertError spos (TrivialError a b c') = TrivialError a b' c''
+>         convertError :: PosState T.Text -> ParseError T.Text Void -> ParseError L.SQLTokenStream Void
+>         convertError posState (TrivialError a b c') = TrivialError a b' c''
 >           where
+>             (spos, _, _) = reachOffset a posState
 >             b' = fmap convErrorItem b
 >             c'' = S.map convErrorItem c'
 >             convErrorItem :: ErrorItem (Token T.Text) -> ErrorItem (Token L.SQLTokenStream)
@@ -247,8 +247,10 @@ converts the error return to the nice wrapper
 >               ErrorFail s -> ErrorFail s
 >               ErrorIndentation o s1 s2 -> ErrorIndentation o s1 s2
 >               ErrorCustom _ -> error "impossible- unused custom error type"
->         convertErrors errs = let spos = pstateSourcePos (bundlePosState errs) in
->           ParseErrorBundle { bundleErrors = NE.map (convertError spos) (bundleErrors errs)
+>         convertErrors errs = let posState = bundlePosState errs 
+>                                  spos = pstateSourcePos posState
+>                              in
+>           ParseErrorBundle { bundleErrors = NE.map (convertError posState) (bundleErrors errs)
 >                            , bundlePosState = PosState { pstateInput = L.SQLTokenStream []
 >                                                        , pstateOffset = 1
 >                                                        , pstateSourcePos = spos

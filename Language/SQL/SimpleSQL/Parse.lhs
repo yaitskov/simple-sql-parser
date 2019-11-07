@@ -200,7 +200,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Data.Text.Read as T
 > import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
 >                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
->                        ,try,many,some,(<|>),choice,eof,MonadParsec(..),errorBundlePretty
+>                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
 >                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
 >                        ,(<?>))
 > import Data.List (sort,groupBy)

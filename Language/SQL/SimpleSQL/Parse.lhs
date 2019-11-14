@@ -1023,9 +1023,11 @@ in the source
 >             <$> option "both" sides
 >             <*> option " " singleQuotesOnlyStringTok
 >             <*> (keyword_ "from" *> scalarExpr)) <|>
->             (mkTrim "both" " " <$> scalarExpr) --simple TRIM(' string')
->            )
+>             try functionTrim <|>
+>             (mkTrim "both" " " <$> scalarExpr)) --simple TRIM(' string')
 >   where
+>     functionTrim = guardDialect [BigQuery, SQLServer] *> -- simple trim as regular function with two arguments
+>                    (App [Name Nothing "trim"] <$> commaSep1 scalarExpr <*> pure Nothing)
 >     sides = choice ["leading" <$ keyword_ "leading"
 >                    ,"trailing" <$ keyword_ "trailing"
 >                    ,"both" <$ keyword_ "both"]

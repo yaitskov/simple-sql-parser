@@ -271,6 +271,7 @@ in other places
 > -- (subquery)' syntax.
 > data InPredValue = InList [ScalarExpr]
 >                  | InQueryExpr QueryExpr
+>                  | InScalarExpr ScalarExpr
 >                    deriving (Eq,Show,Read,Data,Typeable)
 
 not sure if scalar subquery, exists and unique should be represented like this

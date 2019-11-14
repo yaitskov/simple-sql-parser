@@ -1140,16 +1140,18 @@ These are all generic suffixes on any scalar expr
 
 === in
 
-in: two variations:
-a in (expr0, expr1, ...)
-a in (queryexpr)
+in: three variations:
+a in (expr0, expr1, ...) --InList
+a in (queryexpr) -- InQueryExpr
+a in unnest(x) -- InScalarExpr
 
 > inSuffix :: Parser (ScalarExpr -> ScalarExpr)
 > inSuffix =
 >     mkIn <$> inty
->          <*> parens (choice
+>          <*> (parens (choice
 >                      [InQueryExpr <$> queryExpr
->                      ,InList <$> commaSep1 scalarExpr])
+>                      ,InList <$> commaSep1 scalarExpr]) <|>
+>              InScalarExpr <$> scalarExpr)
 >   where
 >     inty = choice [True <$ keyword_ "in"
 >                   ,False <$ keywords_ ["not","in"]]

@@ -194,10 +194,12 @@ which have been changed to try to improve the layout of the output.
 >     scalarExpr d se <+>
 >     (if b then empty else text "not")
 >     <+> text "in"
->     <+> parens (nest (if b then 3 else 7) $
->                  case x of
->                      InList es -> commaSep $ map (scalarExpr d) es
->                      InQueryExpr qe -> queryExpr d qe)
+>     <+> case x of
+>           InList es -> prs $ commaSep $ map (scalarExpr d) es
+>           InQueryExpr qe -> prs $ queryExpr d qe
+>           InScalarExpr se' -> scalarExpr d se'
+>  where
+>    prs e = parens (nest (if b then 3 else 7) e)
 
 > scalarExpr d (Array v es) =
 >     scalarExpr d v <> brackets (commaSep $ map (scalarExpr d) es)

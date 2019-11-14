@@ -1341,16 +1341,7 @@ messages, but both of these are too important.
 >          ,binarySym "!=" AssocRight
 >          ,binarySym "<>" AssocRight
 >          ,binarySym "=" AssocRight]
-
->         ,[postfixKeywords $ makeKeywordTree
->              ["is null"
->              ,"is not null"
->              ,"is true"
->              ,"is not true"
->              ,"is false"
->              ,"is not false"
->              ,"is unknown"
->              ,"is not unknown"]]
+>         ,[isClause]
 >          ++ [binaryKeywords $ makeKeywordTree
 >              ["is distinct from"
 >              ,"is not distinct from"]]
@@ -1369,10 +1360,6 @@ messages, but both of these are too important.
 >         E.InfixN (do
 >                  o <- try p
 >                  pure (\a b -> BinOp a [Name Nothing $ T.unwords o] b))
->     postfixKeywords p =
->       E.Postfix $ do
->           o <- try p
->           pure $ PostfixOp [Name Nothing $ T.unwords o]
 >     binary p nm assoc = (case assoc of
 >                          AssocLeft -> E.InfixL
 >                          AssocRight -> E.InfixR
@@ -1385,6 +1372,18 @@ messages, but both of these are too important.
 >         d <- option SQDefault duplicates
 >         pure (\a b -> MultisetBinOp a o d b))
 >     exceptColumnsOp = E.Postfix (guardDialect [BigQuery] *> exceptColumns)
+>     --parse is not null, is null, is not false, etc.
+>     isClause = E.Postfix $ do
+>                  keyword_ "is"
+>                  mnot <- optional (keyword "not")
+>                  let operator = "is" <> case mnot of
+>                                          Nothing -> ""
+>                                          Just _ -> " not"
+>                  --parse boolean or null
+>                  let acceptArgs = ["null", "true", "false", "unknown"]
+>                  arg <- choice (map (\arg -> keyword_ arg *> pure (Iden [Name Nothing arg])) acceptArgs)
+>                  pure (\a -> BinOp a [Name Nothing operator] arg) 
+>                  
 >     prefixKeyword nm = prefix (keyword_ nm) nm
 >     prefixSym nm = prefix (symbol_ nm) nm
 >     prefix p nm = prefix' (p >> pure (PrefixOp [Name Nothing nm]))

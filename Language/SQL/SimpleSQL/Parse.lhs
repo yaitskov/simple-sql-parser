@@ -702,7 +702,7 @@ subquery expression:
 > subquery :: Parser ScalarExpr
 > subquery = SubQueryExpr <$> sqkw <*> parens queryExpr
 >   where
->     sqkw = SqExists <$ keyword_ "exists" <|> SqUnique <$ keyword_ "unique"
+>     sqkw = SqExists <$ keyword_ "exists" <|> SqUnique <$ keyword_ "unique" <|> pure SqSq
 
 === array/multiset constructor
 
@@ -990,7 +990,10 @@ target_string
 
 
 > extract :: Parser ScalarExpr
-> extract = specialOpK "extract" SOKMandatory [("from", True)]
+> extract = do
+>   keyword_ "extract"
+>   (typ, exp') <- parens ((,) <$> unquotedIdentifierTok [] Nothing <*> (keyword_ "from" *> scalarExpr))
+>   pure $ SpecialOpK [Name Nothing "extract"] (Just (Iden [Name Nothing typ])) [("from", exp')]
 
 > position :: Parser ScalarExpr
 > position = specialOpK "position" SOKMandatory [("in", True)]
@@ -1361,7 +1364,8 @@ messages, but both of these are too important.
 >         ,if bExpr then [] else [binaryKeyword "and" AssocLeft]
 
 >         ,[binaryKeyword "or" AssocLeft]
->         ,[exceptColumnsOp] 
+>         ,[exceptColumnsOp]
+>         ,[atTimeZone]
 >        ]
 >   where
 >     binarySym nm assoc = binary (symbol_ nm) nm assoc
@@ -1392,8 +1396,12 @@ messages, but both of these are too important.
 >                  --parse boolean or null
 >                  let acceptArgs = ["null", "true", "false", "unknown"]
 >                  arg <- choice (map (\arg -> keyword_ arg *> pure (Iden [Name Nothing arg])) acceptArgs)
->                  pure (\a -> BinOp a [Name Nothing operator] arg) 
->                  
+>                  pure (\a -> BinOp a [Name Nothing operator] arg)
+>     atTimeZone = E.Postfix $ do
+>                    let kws = ["at", "time", "zone"]
+>                    keywords_ kws
+>                    tz <- simpleLiteral <|> subquery
+>                    pure (\a -> BinOp a (map (Name Nothing) kws) tz)
 >     prefixKeyword nm = prefix (keyword_ nm) nm
 >     prefixSym nm = prefix (symbol_ nm) nm
 >     prefix p nm = prefix' (p >> pure (PrefixOp [Name Nothing nm]))
@@ -2455,7 +2463,7 @@ not, leave them unreserved for now
 >     --,"current_user"
 >     ,"cursor"
 >     ,"cycle"
->     ,"date"
+> --    ,"date"
 >     --,"day"
 >     ,"deallocate"
 >     ,"dec"

@@ -783,6 +783,7 @@ all the scalar expressions which start with an identifier
 >     try (TypedLit <$> typeName <*> singleQuotesOnlyStringTok)
 >     <|> multisetSetFunction
 >     <|> (try keywordFunction <**> app)
+>     <|> appParensOptional
 >     <|> (names <**> option Iden app)
 >   where
 >     -- this is a special case because set is a reserved keyword
@@ -1090,6 +1091,13 @@ together.
 > withinGroup :: Parser ([ScalarExpr] -> [Name] -> ScalarExpr)
 > withinGroup =
 >     (keywords_ ["within", "group"] *> parens orderBy) <$$$> AggregateAppGroup
+
+> -- | Certain functions such as "CURRENT_TIMESTAMP" do not require parentheses.
+> appParensOptional :: Parser ScalarExpr
+> appParensOptional = do
+>  nam <- unquotedIdentifierTok [] (Just "current_timestamp")
+>  _ <- optional (parens (pure ()))
+>  pure $ App [Name Nothing nam] [] Nothing
 
 ==== window
 

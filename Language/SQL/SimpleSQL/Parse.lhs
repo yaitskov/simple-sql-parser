@@ -687,7 +687,7 @@ cast: cast(expr as type)
 
 > castX :: T.Text -> Parser ScalarExpr
 > castX funcName = keyword_ funcName *>
->                  parens (Cast <$> scalarExpr
+>                  parens (Cast funcName <$> scalarExpr
 >                          <*> (keyword_ "as" *> typeName))
 >
 > -- BigQuery-specific

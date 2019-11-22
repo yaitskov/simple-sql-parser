@@ -160,8 +160,8 @@ which have been changed to try to improve the layout of the output.
 >       <+> text "then" <+> nest 5 (scalarExpr dia t1)
 >     e el = text "else" <+> nest 5 (scalarExpr dia el)
 > scalarExpr d (Parens e) = parens $ scalarExpr d e
-> scalarExpr d (Cast e tn) =
->     text "cast" <> parens (sep [scalarExpr d e
+> scalarExpr d (Cast fn e tn) =
+>     text (unpack fn) <> parens (sep [scalarExpr d e
 >                                ,text "as"
 >                                ,typeName tn])
 

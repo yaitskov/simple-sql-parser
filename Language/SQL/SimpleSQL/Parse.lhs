@@ -1098,7 +1098,8 @@ together.
 > -- | Certain functions such as "CURRENT_TIMESTAMP" do not require parentheses.
 > appParensOptional :: Parser ScalarExpr
 > appParensOptional = do
->  nam <- unquotedIdentifierTok [] (Just "current_timestamp")
+>  let nakedName n = unquotedIdentifierTok [] (Just n)
+>  nam <- nakedName "current_timestamp" <|> nakedName "current_date"
 >  _ <- optional (parens (pure ()))
 >  pure $ App [Name Nothing nam] [] Nothing
 

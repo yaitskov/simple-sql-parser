@@ -29,9 +29,11 @@ The goal is to create some example tests for each bit of grammar, with
 some areas getting more comprehensive coverage tests, and also to note
 which parts aren't currently supported.
 
+>{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.SQL2011Queries (sql2011QueryTests) where
 > import Language.SQL.SimpleSQL.TestTypes
 > import Language.SQL.SimpleSQL.Syntax
+> import Data.Text (pack)
 
 > sql2011QueryTests :: TestItem
 > sql2011QueryTests = Group "sql 2011 query tests"
@@ -1034,7 +1036,7 @@ create a list of type name variations:
 >     makeMultiset (s,t) = (s ++ " multiset", MultisetTypeName t)
 >     basicTypes =
 >         -- example of every standard type name
->         map (\t -> (t,TypeName [Name Nothing t]))
+>         map (\t -> (t,TypeName [Name Nothing (pack t)]))
 >         ["binary"
 >         ,"binary varying"
 >         ,"character"
@@ -1339,7 +1341,7 @@ Specify one or more values, host parameters, SQL parameters, dynamic parameters,
 >                ,"USER"
 >                ,"VALUE"]
 >   where
->     mkIden nm = (nm,Iden [Name Nothing nm])
+>     mkIden nm = (nm,Iden [Name Nothing $ pack nm])
 
 TODO: add the missing bits
 
@@ -3473,7 +3475,7 @@ Specify a comparison of two row values.
 >     ]
 >   where
 >     mkOp nm = ("a " ++ nm ++ " b"
->               ,BinOp a [Name Nothing nm] b)
+>               ,BinOp a [Name Nothing $ pack nm] b)
 >     a = Iden [Name Nothing "a"]
 >     b = Iden [Name Nothing "b"]
 
@@ -4267,20 +4269,20 @@ osf
 >     fil = Just $ BinOp (Iden [Name Nothing "something"]) [Name Nothing ">"] (NumLit "5")
 >     ob = [SortSpec (Iden [Name Nothing "b"]) DirDefault NullsOrderDefault]
 >     mkGp nm = (nm ++ "(a) within group (order by b)"
->               ,AggregateAppGroup [Name Nothing nm]
+>               ,AggregateAppGroup [Name Nothing $ pack nm]
 >                [Iden [Name Nothing "a"]]
 >                ob)
 
 >     mkSimpleAgg nm =
->         [(nm ++ "(a)",App [Name Nothing nm] [Iden [Name Nothing "a"]] Nothing)
+>         [(nm ++ "(a)",App [Name Nothing $ pack nm] [Iden [Name Nothing "a"]] Nothing)
 >         ,(nm ++ "(distinct a)"
->          ,AggregateApp [Name Nothing nm]
+>          ,AggregateApp [Name Nothing $ pack nm]
 >                        Distinct
 >                        [Iden [Name Nothing "a"]] [] Nothing Nothing)]
 >     mkBsf nm =
->         [(nm ++ "(a,b)",App [Name Nothing nm] [Iden [Name Nothing "a"] ,Iden [Name Nothing "b"]] Nothing)
+>         [(nm ++ "(a,b)",App [Name Nothing $ pack nm] [Iden [Name Nothing "a"] ,Iden [Name Nothing "b"]] Nothing)
 >         ,(nm ++"(a,b) filter (where something > 5)"
->           ,AggregateApp [Name Nothing nm]
+>           ,AggregateApp [Name Nothing $ pack nm]
 >                         SQDefault
 >                         [Iden [Name Nothing "a"],Iden [Name Nothing "b"]]
 >                         []

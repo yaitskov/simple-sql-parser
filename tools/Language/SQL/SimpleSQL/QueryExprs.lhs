@@ -2,6 +2,7 @@
 These are the tests for the queryExprs parsing which parses multiple
 query expressions from one string.
 
+>{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.QueryExprs (queryExprsTests) where
 
 > import Language.SQL.SimpleSQL.TestTypes
@@ -19,6 +20,7 @@ query expressions from one string.
 >     ,("SELECT \"CURRENT_TIMESTAMP\";"
 >      ,[SelectStatement $ makeSelect
 >       {qeSelectList = [(Iden [Name (Just ("\"","\"")) "CURRENT_TIMESTAMP"],Nothing)]}])
+>     ,("(with x as (with y as select 1) union select 1;", [ms])
 >     ]
 >   where
 >     ms = SelectStatement $ makeSelect {qeSelectList = [(NumLit "1",Nothing)]}

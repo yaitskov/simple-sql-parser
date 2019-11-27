@@ -3,6 +3,7 @@
 Data types to represent different dialect options
 
 > {-# LANGUAGE DeriveDataTypeable #-}
+> {-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.Dialect
 >     (Dialect(..)
 >     ,ansi2011
@@ -10,9 +11,11 @@ Data types to represent different dialect options
 >     ,postgres
 >     ,oracle
 >     ,sqlserver
+>     ,bigquery
 >     ) where
 
 > import Data.Data
+> import Data.Text
 
 > -- | Used to set the dialect used for parsing and pretty printing,
 > -- very unfinished at the moment.
@@ -55,14 +58,14 @@ Data types to represent different dialect options
 >
 > data Dialect = Dialect
 >     { -- | reserved keywords
->      diKeywords :: [String]
+>      diKeywords :: [Text]
 >       -- | keywords with identifier exception
->     ,diIdentifierKeywords :: [String]
+>     ,diIdentifierKeywords :: [Text]
 >       -- | keywords with app exception
->     ,diAppKeywords :: [String]
+>     ,diAppKeywords :: [Text]
 >      -- | keywords with type exception plus all the type names which
 >      -- are multiple words
->     ,diSpecialTypeNames :: [String]
+>     ,diSpecialTypeNames :: [Text]
 >      -- | allow ansi fetch first syntax
 >     ,diFetchFirst :: Bool
 >      -- | allow limit keyword (mysql, postgres,
@@ -70,6 +73,8 @@ Data types to represent different dialect options
 >     ,diLimit :: Bool
 >      -- | allow parsing ODBC syntax
 >     ,diOdbc :: Bool
+>      -- | allow quoting identifiers with \"double quotes\"
+>     ,diDoubleQuotedIden :: Bool
 >      -- | allow quoting identifiers with \`backquotes\`
 >     ,diBackquotedIden :: Bool
 >      -- | allow quoting identifiers with [square brackets]
@@ -88,6 +93,18 @@ Data types to represent different dialect options
 >     ,diPostgresSymbols :: Bool
 >      -- | allow sql server style symbols
 >     ,diSqlServerSymbols :: Bool
+>      -- | allow TRIM as regular function
+>     ,diTrimRegularFunction :: Bool
+>      -- | allow * EXCEPT(...) in projections
+>     ,diExceptColumns :: Bool
+>      -- | allow SAFE_CAST(...)
+>     ,diSafeCast :: Bool
+>      -- | allow STRUCT<...>(...) construction
+>     ,diStruct :: Bool
+>      -- | allow EXTRACT(WEEK FROM ...)
+>     ,diWeekExtract :: Bool
+>      -- | allow UNNEST(...)
+>     ,diUnnest :: Bool
 >     }
 >                deriving (Eq,Show,Read,Data,Typeable)
 
@@ -100,6 +117,7 @@ Data types to represent different dialect options
 >                    ,diFetchFirst = True
 >                    ,diLimit = False
 >                    ,diOdbc = False
+>                    ,diDoubleQuotedIden = True
 >                    ,diBackquotedIden = False
 >                    ,diSquareBracketQuotedIden = False
 >                    ,diAtIdentifier = False
@@ -109,6 +127,12 @@ Data types to represent different dialect options
 >                    ,diEString = False
 >                    ,diPostgresSymbols = False
 >                    ,diSqlServerSymbols = False
+>                    ,diTrimRegularFunction = False
+>                    ,diExceptColumns = False
+>                    ,diSafeCast = False
+>                    ,diStruct = False
+>                    ,diWeekExtract = False
+>                    ,diUnnest = False
 >                    }
 
 > -- | mysql dialect
@@ -133,7 +157,8 @@ Data types to represent different dialect options
 > sqlserver = ansi2011 {diSquareBracketQuotedIden = True
 >                      ,diAtIdentifier = True
 >                      ,diHashIdentifier = True
->                      ,diSqlServerSymbols = True }
+>                      ,diSqlServerSymbols = True
+>                      ,diTrimRegularFunction = True}
 
 > addLimit :: Dialect -> Dialect
 > addLimit d = d {diKeywords = "limit": diKeywords d
@@ -166,7 +191,7 @@ which I think have idiosyncratic rules about when a keyword must be
 quoted. If you want to match one of these dialects exactly with this
 parser, I think it will be a lot of work.
 
-> ansi2011ReservedKeywords :: [String]
+> ansi2011ReservedKeywords :: [Text]
 > ansi2011ReservedKeywords =
 >     [--"abs" -- function
 >      "all" -- keyword only?
@@ -494,8 +519,7 @@ parser, I think it will be a lot of work.
 >     --,"year"
 >     ]
 
-
-> ansi2011TypeNames :: [String]
+> ansi2011TypeNames :: [Text]
 > ansi2011TypeNames =
 >     ["double precision"
 >     ,"character varying"
@@ -538,3 +562,16 @@ parser, I think it will be a lot of work.
 >     ,"varchar"
 >     ,"varbinary"
 >     ]
+
+> -- | google bigquery dialect
+> bigquery :: Dialect
+> bigquery = addLimit ansi2011 { diFetchFirst = False
+>                              , diDoubleQuotedIden = False
+>                              , diBackquotedIden = True
+>                              , diTrimRegularFunction = True
+>                              , diExceptColumns = True
+>                              , diSafeCast = True
+>                              , diStruct = True
+>                              , diWeekExtract = True
+>                              , diUnnest = True
+>                              }

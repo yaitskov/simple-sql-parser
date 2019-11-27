@@ -5,8 +5,7 @@
 > -- other parser combinator libraries other than Parsec.
 
 > module Language.SQL.SimpleSQL.Combinators
->     (optionSuffix
->     ,(<??>)
+>     ((<??>)
 >     ,(<??.>)
 >     ,(<??*>)
 >     ,(<$$>)
@@ -15,11 +14,11 @@
 >     ,(<$$$$$>)
 >     ,(<$$$$$$>)
 >     ,flip3
+>     ,optionSuffix
 >     ) where
 
-> import Control.Applicative ((<**>))
-> import Text.Parsec (option,many)
-> import Text.Parsec.String (GenParser)
+> import Control.Applicative ((<$>), (<*>), (<**>), pure, Applicative)
+> import Text.Megaparsec (option,many, MonadParsec)
 
 a possible issue with the option suffix is that it enforces left
 associativity when chaining it recursively. Have to review
@@ -29,17 +28,17 @@ instead, and create an alternative suffix parser
 This function style is not good, and should be replaced with chain and
 <??> which has a different type
 
-> optionSuffix :: (a -> GenParser t s a) -> a -> GenParser t s a
-> optionSuffix p a = option a (p a)
-
 
 parses an optional postfix element and applies its result to its left
 hand result, taken from uu-parsinglib
 
+> optionSuffix :: MonadParsec e s m => (a -> m a) -> a -> m a
+> optionSuffix p a = option a (p a)
+
 TODO: make sure the precedence higher than <|> and lower than the
 other operators so it can be used nicely
 
-> (<??>) :: GenParser t s a -> GenParser t s (a -> a) -> GenParser t s a
+> (<??>) :: (MonadParsec e s m) => m a -> m (a -> a) -> m a
 > p <??> q = p <**> option id q
 
 
@@ -85,7 +84,7 @@ composing suffix parsers, not sure about the name. This is used to add
 a second or more suffix parser contingent on the first suffix parser
 succeeding.
 
-> (<??.>) :: GenParser t s (a -> a) -> GenParser t s (a -> a) -> GenParser t s (a -> a)
+> (<??.>) :: MonadParsec e s m => m (a -> a) -> m (a -> a) -> m (a -> a)
 > (<??.>) pa pb = (.) `c` pa <*> option id pb
 >   -- todo: fix this mess
 >   where c = (<$>) . flip
@@ -93,7 +92,7 @@ succeeding.
 
 0 to many repeated applications of suffix parser
 
-> (<??*>) :: GenParser t s a -> GenParser t s (a -> a) -> GenParser t s a
+> (<??*>) :: MonadParsec e s m => m a -> m (a -> a) -> m a
 > p <??*> q = foldr ($) <$> p <*> (reverse <$> many q)
 
 

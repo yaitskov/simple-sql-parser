@@ -11,6 +11,7 @@ test data to the Test.Framework tests.
 
 > import qualified Test.Tasty as T
 > import qualified Test.Tasty.HUnit as H
+> import Data.Text (pack)
 
 > --import Language.SQL.SimpleSQL.Syntax
 > import Language.SQL.SimpleSQL.Pretty
@@ -95,12 +96,12 @@ order on the generated documentation.
 > itemToTest (LexTest d s ts) = makeLexerTest d s ts
 > itemToTest (LexFails d s) = makeLexingFailsTest d s
 
-> makeLexerTest :: Dialect -> String -> [Token] -> T.TestTree
+> makeLexerTest :: Dialect -> String -> [SQLToken] -> T.TestTree
 > makeLexerTest d s ts = H.testCase s $ do
->     let lx = either (error . show) id $ lexSQL d "" Nothing s
->     H.assertEqual "" ts $ map snd lx
->     let s' = prettyTokens d $ map snd lx
->     H.assertEqual "pretty print" s s'
+>     let lx = either (error . show) sqlTokenStreamAsList $ lexSQL d "" Nothing s
+>     H.assertEqual "" ts lx
+>     let s' = prettyTokens d lx
+>     H.assertEqual "pretty print" (pack s) s'
 
 > makeLexingFailsTest :: Dialect -> String -> T.TestTree
 > makeLexingFailsTest d s = H.testCase s $ do
@@ -110,7 +111,7 @@ order on the generated documentation.
 
 
 > toTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String
@@ -119,7 +120,7 @@ order on the generated documentation.
 > toTest parser pp d str expected = H.testCase str $ do
 >         let egot = parser d "" Nothing str
 >         case egot of
->             Left e -> H.assertFailure $ peFormattedError e
+>             Left e -> H.assertFailure $ show e
 >             Right got -> do
 >                 H.assertEqual "" expected got
 >                 let str' = pp d got
@@ -127,13 +128,13 @@ order on the generated documentation.
 >                 case egot' of
 >                     Left e' -> H.assertFailure $ "pp roundtrip"
 >                                                  ++ "\n" ++ str'
->                                                  ++ peFormattedError e'
+>                                                  ++ show e'
 >                     Right got' -> H.assertEqual
 >                                   ("pp roundtrip" ++ "\n" ++ str')
 >                                    expected got'
 
 > toPTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String
@@ -141,19 +142,19 @@ order on the generated documentation.
 > toPTest parser pp d str = H.testCase str $ do
 >         let egot = parser d "" Nothing str
 >         case egot of
->             Left e -> H.assertFailure $ peFormattedError e
+>             Left e -> H.assertFailure $ show e
 >             Right got -> do
 >                 let str' = pp d got
 >                 let egot' = parser d "" Nothing str'
 >                 case egot' of
 >                     Left e' -> H.assertFailure $ "pp roundtrip "
 >                                                  ++ "\n" ++ str' ++ "\n"
->                                                  ++ peFormattedError e'
+>                                                  ++ show e'
 >                     Right _got' -> return ()
 
 
 > toFTest :: (Eq a, Show a) =>
->           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseError a)
+>           (Dialect -> String -> Maybe (Int,Int) -> String -> Either ParseErrors a)
 >        -> (Dialect -> a -> String)
 >        -> Dialect
 >        -> String

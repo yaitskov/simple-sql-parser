@@ -1,4 +1,5 @@
-
+> {-# LANGUAGE CPP #-}
+> {-# LANGUAGE OverloadedStrings #-}
 > -- | These is the pretty printing functions, which produce SQL
 > -- source from ASTs. The code attempts to format the output in a
 > -- readable way.
@@ -21,10 +22,10 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >                          brackets,hcat)
 > import Data.Maybe (maybeToList, catMaybes)
 > import Data.List (intercalate)
+> import Data.Text (unpack)
 
 
 > import Language.SQL.SimpleSQL.Syntax
-> import Language.SQL.SimpleSQL.Dialect
 
 
 > -- | Convert a query expr ast to concrete syntax.
@@ -47,9 +48,9 @@ Try to do this when this code is ported to a modern pretty printing lib.
 = scalar expressions
 
 > scalarExpr :: Dialect -> ScalarExpr -> Doc
-> scalarExpr _ (StringLit s e t) = text s <> text t <> text e
+> scalarExpr _ (StringLit s e t) = text (unpack s) <> text (unpack t) <> text (unpack e)
 
-> scalarExpr _ (NumLit s) = text s
+> scalarExpr _ (NumLit s) = text (unpack s)
 > scalarExpr d (IntervalLit s v f t) =
 >     text "interval"
 >     <+> me (\x -> text $ case x of
@@ -60,11 +61,12 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >     <+> me (\x -> text "to" <+> intervalTypeField x) t
 > scalarExpr _ (Iden i) = names i
 > scalarExpr _ Star = text "*"
+> scalarExpr d (ExceptColumns sexp columns) = scalarExpr d sexp <+> text "EXCEPT" <+> parens (commaSep (map names columns))
 > scalarExpr _ Parameter = text "?"
 > scalarExpr _ (PositionalArg n) = text $ "$" ++ show n
 > scalarExpr _ (HostParameter p i) =
->     text p
->     <+> me (\i' -> text "indicator" <+> text i') i
+>     text (unpack p)
+>     <+> me (\i' -> text "indicator" <+> text (unpack i')) i
 
 > scalarExpr d (App f es nr) = names f <> parens (commaSep (map (scalarExpr d) es) <> nullsRespect nr)
 
@@ -125,7 +127,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 > scalarExpr d (SpecialOpK nm fs as) =
 >     names nm <> parens (sep $ catMaybes
 >         (fmap (scalarExpr d) fs
->          : map (\(n,e) -> Just (text n <+> scalarExpr d e)) as))
+>          : map (\(n,e) -> Just (text (unpack n) <+> scalarExpr d e)) as))
 
 > scalarExpr d (PrefixOp f e) = names f <+> scalarExpr d e
 > scalarExpr d (PostfixOp f e) = scalarExpr d e <+> names f
@@ -163,7 +165,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >                                ,typeName tn])
 
 > scalarExpr _ (TypedLit tn s) =
->     typeName tn <+> quotes (text s)
+>     typeName tn <+> quotes (text (unpack s))
 
 > scalarExpr d (SubQueryExpr ty qe) =
 >     (case ty of
@@ -191,10 +193,12 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >     scalarExpr d se <+>
 >     (if b then empty else text "not")
 >     <+> text "in"
->     <+> parens (nest (if b then 3 else 7) $
->                  case x of
->                      InList es -> commaSep $ map (scalarExpr d) es
->                      InQueryExpr qe -> queryExpr d qe)
+>     <+> case x of
+>           InList es -> prs $ commaSep $ map (scalarExpr d) es
+>           InQueryExpr qe -> prs $ queryExpr d qe
+>           InScalarExpr se' -> scalarExpr d se'
+>  where
+>    prs e = parens (nest (if b then 3 else 7) e)
 
 > scalarExpr d (Array v es) =
 >     scalarExpr d v <> brackets (commaSep $ map (scalarExpr d) es)
@@ -238,7 +242,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >     vcat $ map comment cmt ++ [scalarExpr d v]
 
 > scalarExpr _ (OdbcLiteral t s) =
->     text "{" <> lt t <+> quotes (text s) <> text "}"
+>     text "{" <> lt t <+> quotes (text (unpack s)) <> text "}"
 >   where
 >     lt OLDate = text "d"
 >     lt OLTime = text "t"
@@ -248,9 +252,9 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >     text "{fn" <+> scalarExpr d e <> text "}"
 
 > unname :: Name -> String
-> unname (Name Nothing n) = n
+> unname (Name Nothing n) = unpack n
 > unname (Name (Just (s,e)) n) =
->     s ++ n ++ e
+>     (unpack s ++ unpack n ++ unpack e)
 
 > unnames :: [Name] -> String
 > unnames ns = intercalate "." $ map unname ns
@@ -261,8 +265,8 @@ Try to do this when this code is ported to a modern pretty printing lib.
 > nullsRespect Nothing = mempty
 
 > name :: Name -> Doc
-> name (Name Nothing n) = text n
-> name (Name (Just (s,e)) n) = text s <> text n <> text e
+> name (Name Nothing n) = text (unpack n)
+> name (Name (Just (s,e)) n) = text (unpack s) <> text (unpack n) <> text (unpack e)
 
 > names :: [Name] -> Doc
 > names ns = hcat $ punctuate (text ".") $ map name ns
@@ -316,7 +320,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 
 > intervalTypeField :: IntervalTypeField -> Doc
 > intervalTypeField (Itf n p) =
->     text n
+>     text (unpack n)
 >     <+> me (\(x,x1) ->
 >              parens (text (show x)
 >                      <+> me (\y -> (sep [comma,text (show y)])) x1)) p
@@ -349,10 +353,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 
 > queryExpr dia (QueryExprSetOp q1 ct d c q2) =
 >   sep [queryExpr dia q1
->       ,text (case ct of
->                 Union -> "union"
->                 Intersect -> "intersect"
->                 Except -> "except")
+>       ,setOperatorName ct
 >        <+> case d of
 >                SQDefault -> empty
 >                All -> text "all"
@@ -378,7 +379,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 > queryExpr _ (Table t) = text "table" <+> names t
 > queryExpr d (QEComment cmt v) =
 >     vcat $ map comment cmt ++ [queryExpr d v]
-
+> queryExpr d (QParens p) = parens (queryExpr d p) --if you like your parentheses, you can keep your parentheses
 
 > alias :: Alias -> Doc
 > alias (Alias nm cols) =
@@ -427,6 +428,12 @@ Try to do this when this code is ported to a modern pretty printing lib.
 > maybeScalarExpr d k = me
 >       (\e -> sep [text k
 >                  ,nest (length k + 1) $ scalarExpr d e])
+
+> setOperatorName :: SetOperatorName -> Doc
+> setOperatorName ct = text (case ct of
+>                           Union -> "union"
+>                           Intersect -> "intersect"
+>                           Except -> "except")
 
 > grpBy :: Dialect -> [GroupingExpr] -> Doc
 > grpBy _ [] = empty
@@ -819,7 +826,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 > me = maybe empty
 
 > comment :: Comment -> Doc
-> comment (BlockComment str) = text "/*" <+> text str <+> text "*/"
+> comment (BlockComment str) = text "/*" <+> text (unpack str) <+> text "*/"
 
 > texts :: [String] -> Doc
 > texts ts = sep $ map text ts

@@ -223,7 +223,7 @@ u&"unicode quoted identifier"
 > identifier :: Dialect -> Parser SQLToken
 > identifier d =
 >     choice
->     [guard (diSyntaxFlavour d /= BigQuery) >> quotedIden
+>     [quotedIden
 >     ,unicodeQuotedIden
 >     ,regularIden
 >     ,guard (diSyntaxFlavour d `elem` [MySQL, BigQuery]) >> backtickQuotedIden

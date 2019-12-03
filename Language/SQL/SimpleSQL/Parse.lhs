@@ -369,7 +369,7 @@ u&"example quoted"
 > name :: Parser Name
 > name = do
 >     d <- getDialect
->     (uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")
+>     ((uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")) <?> "named identifier"
 >
 > getDialect :: Parser Dialect
 > getDialect = ask
@@ -2285,6 +2285,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >                case tok of
 >                  --support backticks for quoting of BigQuery columns which are otherwise keywords
 >                  L.Identifier q@(Just ("`","`")) p | diSyntaxFlavour d `elem` [BigQuery] -> Just (q,p)
+>                  L.Identifier (Just ("\"","\"")) _ | diSyntaxFlavour d `elem` [BigQuery] -> Nothing
 >                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
 >                  L.Identifier q p | T.toLower p `notElem` blackList -> Just (q,p)
 >                  _ -> Nothing)

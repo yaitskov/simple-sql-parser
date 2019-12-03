@@ -213,7 +213,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
 > import qualified Data.List.NonEmpty as NE
-
+> 
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
 > type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
 
@@ -646,16 +646,19 @@ syntax can start with the same keyword.
 cast: cast(expr as type)
 
 > cast :: Parser ScalarExpr
-> cast = castX "cast"
+> cast = castX CastStandard
 
-> castX :: T.Text -> Parser ScalarExpr
-> castX funcName = keyword_ funcName *>
->                  parens (Cast <$> scalarExpr
+> castX :: CastSafe -> Parser ScalarExpr
+> castX safe = keyword_ funcname *>
+>                  parens (Cast safe <$> scalarExpr
 >                          <*> (keyword_ "as" *> typeName))
+>   where funcname = case safe of
+>                      CastSafe -> "safe_cast"
+>                      CastStandard -> "cast"
 >
 > -- BigQuery-specific
 > safe_cast :: Parser ScalarExpr
-> safe_cast = castX "safe_cast"
+> safe_cast = castX CastSafe
 
 === exists, unique
 
@@ -746,8 +749,8 @@ all the scalar expressions which start with an identifier
 >     try (TypedLit <$> typeName <*> singleQuotesOnlyStringTok)
 >     -- <|> (try keywordFunction <**> app)
 >     -- <|> appParensOptional
->     <|> (names <**> option Iden app)
 >     <|> keywordFunctionOrIden
+>     <|> (names <**> option Iden app)
 >   where
 >     -- special cases for keywords that can be parsed as an iden or app
 >     keywordFunctionOrIden = try $ do
@@ -756,7 +759,7 @@ all the scalar expressions which start with an identifier
 >         let i = T.toLower x `elem` diIdentifierKeywords d
 >             a = T.toLower x `elem` diAppKeywords d
 >         case () of
->             _  | i && a -> pure [Name Nothing x] <**> option Iden app
+>             _  | i && a -> (pure [Name Nothing x] <**> app) <|> pure (App [Name Nothing x] [] Nothing)
 >                | i -> pure (Iden [Name Nothing x])
 >                | a -> pure [Name Nothing x] <**> app
 >                | otherwise -> fail ""

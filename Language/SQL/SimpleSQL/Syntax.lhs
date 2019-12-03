@@ -25,6 +25,7 @@
 >      -- * Query expressions
 >     ,QueryExpr(..)
 >     ,makeSelect
+>     ,CastSafe(..)
 >     ,SetOperatorName(..)
 >     ,Corresponding(..)
 >     ,Alias(..)
@@ -180,7 +181,7 @@
 >     | SpecialOpK [Name] (Maybe ScalarExpr) [(Text,ScalarExpr)]
 
 >       -- | cast(a as typename)
->     | Cast ScalarExpr TypeName
+>     | Cast CastSafe ScalarExpr TypeName
 
 >       -- | case expression. both flavours supported
 >     | Case
@@ -212,6 +213,7 @@
 >                                   -- scalarExpr is the array, the
 >                                   -- second is the subscripts/ctor args
 >     | ArrayCtor QueryExpr -- ^ this is used for the query expression version of array constructors, e.g. array(select * from t)
+>
 
 todo: special syntax for like, similar with escape - escape cannot go
 in other places
@@ -239,7 +241,9 @@ in other places
 > -- * [ms] -> Name (Just ("[","]") "ms"
 > data Name = Name (Maybe (Text,Text)) Text
 >             deriving (Eq,Show,Read,Data,Typeable)
-
+>
+> data CastSafe = CastSafe | CastStandard -- ^ discern between SAFE_CAST and CAST
+>                 deriving (Eq, Show, Read, Data, Typeable)
 > -- | Represents a type name, used in casts.
 > data TypeName
 >     = TypeName [Name]

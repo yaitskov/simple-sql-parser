@@ -159,10 +159,14 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >       <+> text "then" <+> nest 5 (scalarExpr dia t1)
 >     e el = text "else" <+> nest 5 (scalarExpr dia el)
 > scalarExpr d (Parens e) = parens $ scalarExpr d e
-> scalarExpr d (Cast e tn) =
->     text "cast" <> parens (sep [scalarExpr d e
+> scalarExpr d (Cast safe e tn) =
+>     text func <> parens (sep [scalarExpr d e
 >                                ,text "as"
 >                                ,typeName tn])
+>   where
+>     func = case safe of
+>       CastStandard -> "cast"
+>       CastSafe -> "safe_cast"
 
 > scalarExpr _ (TypedLit tn s) =
 >     typeName tn <+> quotes (text (unpack s))

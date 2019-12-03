@@ -574,4 +574,6 @@ parser, I think it will be a lot of work.
 >                              , diStruct = True
 >                              , diWeekExtract = True
 >                              , diUnnest = True
+>                              , diIdentifierKeywords = ["current_timestamp", "current_date"]
+>                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest"]
 >                              }

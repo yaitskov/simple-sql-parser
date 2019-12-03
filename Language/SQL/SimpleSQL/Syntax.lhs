@@ -181,7 +181,7 @@
 >     | SpecialOpK [Name] (Maybe ScalarExpr) [(Text,ScalarExpr)]
 
 >       -- | cast(a as typename)
->     | Cast CastSafe ScalarExpr TypeName
+>     | Cast CastSafe ScalarExpr TypeName -- also supports "safe_cast" for BigQuery
 
 >       -- | case expression. both flavours supported
 >     | Case

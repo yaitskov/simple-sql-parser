@@ -370,7 +370,7 @@ u&"example quoted"
 > name :: Parser Name
 > name = do
 >     d <- getDialect
->     (uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")
+>     ((uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")) <?> "named identifier"
 >
 > getDialect :: Parser Dialect
 > getDialect = ask
@@ -993,7 +993,8 @@ together.
 > {- -- | Certain functions such as "CURRENT_TIMESTAMP" do not require parentheses.
 > appParensOptional :: Parser ScalarExpr
 > appParensOptional = do
->  nam <- unquotedIdentifierTok [] (Just "current_timestamp")
+>  let nakedName n = unquotedIdentifierTok [] (Just n)
+>  nam <- nakedName "current_timestamp" <|> nakedName "current_date"
 >  _ <- optional (parens (pure ()))
 >  pure $ App [Name Nothing nam] [] Nothing -}
 
@@ -2181,7 +2182,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >                case tok of
 >                  --support backticks for quoting of BigQuery columns which are otherwise keywords
 >                  L.Identifier q@(Just ("`","`")) p | diBackquotedIden d -> Just (q,p)
->                  L.Identifier q@(Just ("\"","\"")) p -> Just (q,p)
+>                  L.Identifier q@(Just ("\"","\"")) p | diDoubleQuotedIden d -> Just (q,p)
 >                  L.Identifier q p | T.toLower p `notElem` blackList -> Just (q,p)
 >                  _ -> Nothing)
 

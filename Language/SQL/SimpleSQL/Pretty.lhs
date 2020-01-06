@@ -70,7 +70,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 
 > scalarExpr d (App f es nr) = names f <> parens (commaSep (map (scalarExpr d) es) <> nullsRespect nr)
 
-> scalarExpr dia (AggregateApp f d es od nr fil) =
+> scalarExpr dia (AggregateApp f d es od lim nr fil) =
 >     names f
 >     <> parens ((case d of
 >                   Distinct -> text "distinct"
@@ -78,6 +78,7 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >                   SQDefault -> empty)
 >                <+> commaSep (map (scalarExpr dia) es)
 >                <+> orderBy dia od
+>                <+> me (fetchFirst dia) lim
 >                <+> nullsRespect nr)
 >     <+> me (\x -> text "filter"
 >                   <+> parens (text "where" <+> scalarExpr dia x)) fil
@@ -330,6 +331,15 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >                      <+> me (\y -> (sep [comma,text (show y)])) x1)) p
 
 
+> fetchFirst :: Dialect -> ScalarExpr -> Doc
+> fetchFirst dia lim = 
+>   if diLimit dia
+>   then text "limit" <+> scalarExpr dia lim
+>   else text "fetch first" <+> scalarExpr dia lim
+>        <+> text "rows only"
+>
+> 
+
 = query expressions
 
 > queryExpr :: Dialect -> QueryExpr -> Doc
@@ -346,15 +356,9 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >       ,maybeScalarExpr dia "having" hv
 >       ,orderBy dia od
 >       ,me (\e -> text "offset" <+> scalarExpr dia e <+> text "rows") off
->       ,fetchFirst
+>       ,me (fetchFirst dia) fe
 >       ]
->   where
->     fetchFirst =
->       me (\e -> if diLimit dia
->                 then text "limit" <+> scalarExpr dia e
->                 else text "fetch first" <+> scalarExpr dia e
->                      <+> text "rows only") fe
-
+>
 > queryExpr dia (QueryExprSetOp q1 ct d c q2) =
 >   sep [queryExpr dia q1
 >       ,setOperatorName ct

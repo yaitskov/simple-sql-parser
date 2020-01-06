@@ -105,6 +105,8 @@ Data types to represent different dialect options
 >     ,diWeekExtract :: Bool
 >      -- | allow UNNEST(...)
 >     ,diUnnest :: Bool
+>      -- | allow LIMIT in aggregate function
+>     ,diAggregateLimit :: Bool
 >     }
 >                deriving (Eq,Show,Read,Data,Typeable)
 
@@ -133,6 +135,7 @@ Data types to represent different dialect options
 >                    ,diStruct = False
 >                    ,diWeekExtract = False
 >                    ,diUnnest = False
+>                    ,diAggregateLimit = False
 >                    }
 
 > -- | mysql dialect
@@ -575,5 +578,6 @@ parser, I think it will be a lot of work.
 >                              , diWeekExtract = True
 >                              , diUnnest = True
 >                              , diIdentifierKeywords = ["current_timestamp", "current_date"]
->                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date"]
+>                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "ntile"]
+>                              , diAggregateLimit = True
 >                              }

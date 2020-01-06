@@ -213,9 +213,10 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
 > import qualified Data.List.NonEmpty as NE
-> 
+>
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
 > type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
+>
 
 This helper function takes the parser given and:
 
@@ -949,11 +950,15 @@ together.
 > app :: Parser ([Name] -> ScalarExpr)
 > app =
 >     openParen *> choice
->     [duplicates
->      <**> (commaSep1 scalarExpr
->            <**> ((((option [] orderBy) <* closeParen)
->               <**> (respectNulls
->                  <**> (optional afilter <$$$$$$> AggregateApp)))))
+>     [do
+>      dis <- duplicates
+>      args <- commaSep1 scalarExpr
+>      orderBy' <- option [] orderBy
+>      lim <- optional (guardDialect diAggregateLimit *> fetch)
+>      respNull <- respectNulls
+>      _ <- closeParen
+>      fil <- optional afilter
+>      pure (\name' -> AggregateApp name' dis args orderBy' lim respNull fil)
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
 >     -- handle window query with IGNORE/RESPECT NULLS
@@ -967,20 +972,22 @@ together.
 >         nr <- respectNulls
 >         _ <- closeParen
 >         pure ((flip3 App) nr args)
->     ,commaSep1 scalarExpr
+>     ,do
+>        commaSep1 scalarExpr
 >        <**> choice
 >           [closeParen *> choice
 >                          [withinGroup
 >                          ,(Just <$> afilter) <$$$> aggAppWithoutDupeOrd
 >                          ,pure ((flip3 App) Nothing)]
->           ,orderBy <* closeParen
->            <**> (optional afilter <$$$$> aggAppWithoutDupe)]
+>           ,(orderBy 
+>            <**> ((optional (guardDialect diAggregateLimit *> fetch) <* closeParen)
+>            <**> (optional afilter <$$$$$> aggAppWithoutDupe)))]
 >      -- no scalarExprs: duplicates and order by not allowed
 >     ,([] <$ closeParen) <**> option ((flip3 App) Nothing) (window Nothing <|> withinGroup)
 >     ]
 >   where
->     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] Nothing f
->     aggAppWithoutDupe n a o = AggregateApp n SQDefault a o Nothing
+>     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] Nothing Nothing f
+>     aggAppWithoutDupe name' args ord lim = AggregateApp name' SQDefault args ord lim Nothing
 
 > afilter :: Parser ScalarExpr
 > afilter = keyword_ "filter" *> parens (keyword_ "where" *> scalarExpr)

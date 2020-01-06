@@ -152,6 +152,7 @@
 >       ,aggDistinct :: SetQuantifier -- ^ distinct
 >       ,aggArgs :: [ScalarExpr]-- ^ args
 >       ,aggOrderBy :: [SortSpec] -- ^ order by
+>       ,aggFetchFirst :: Maybe ScalarExpr -- ^ fetch/limit
 >       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS> 
 >       ,aggFilter :: Maybe ScalarExpr -- ^ filter
 >       }

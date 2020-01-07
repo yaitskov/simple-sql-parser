@@ -1304,7 +1304,7 @@ messages, but both of these are too important.
 >                    let kws = ["at", "time", "zone"]
 >                    keywords_ kws
 >                    tz <- simpleLiteral <|> subquery
->                    pure (\a -> BinOp a (map (Name Nothing) kws) tz)
+>                    pure (\a -> BinOp a [Name Nothing (T.intercalate " " kws)] tz)
 >     prefixKeyword nm = prefix (keyword_ nm) nm
 >     prefixSym nm = prefix (symbol_ nm) nm
 >     prefix p nm = prefix' (p >> pure (PrefixOp [Name Nothing nm]))

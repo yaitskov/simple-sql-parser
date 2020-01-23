@@ -231,7 +231,7 @@ u&"unicode quoted identifier"
 >     ,guard (diSquareBracketQuotedIden d) >> sqlServerQuotedIden
 >     ]
 >   where
->     regularIden = Identifier Nothing <$> identifierString
+>     regularIden = Identifier Nothing <$> identifierString d
 >     quotedIden = Identifier (Just ("\"","\"")) <$> qidenPart
 >     backtickQuotedIden = Identifier (Just ("`","`"))
 >                       <$> (char '`' *> takeWhile1P (Just "backticked token") (/='`') <* char '`')
@@ -257,24 +257,24 @@ u&"unicode quoted identifier"
 
 This parses a valid identifier without quotes.
 
-> identifierString :: Parser Text
-> identifierString =
->     startsWith (\c -> c == '_' || isAlpha c) isIdentifierChar
+> identifierString :: Dialect -> Parser Text
+> identifierString di = 
+>     startsWith (\c -> c == '_' || isAlpha c) (isIdentifierChar di)
 
 this can be moved to the dialect at some point
 
-> isIdentifierChar :: Char -> Bool
-> isIdentifierChar c = c == '_' || isAlphaNum c
+> isIdentifierChar :: Dialect -> Char -> Bool
+> isIdentifierChar di c = c == '_' || isAlphaNum c || if diTableAsteriskSuffix di then c == '*' else False
 
 use try because : and @ can be part of other things also
 
 > prefixedVariable :: Dialect -> Parser SQLToken
 > prefixedVariable  d = try $ choice
->     [PrefixedVariable <$> char ':' <*> identifierString
+>     [PrefixedVariable <$> char ':' <*> identifierString d
 >     ,guard (diAtIdentifier d) >>
->      PrefixedVariable <$> char '@' <*> identifierString
+>      PrefixedVariable <$> char '@' <*> identifierString d
 >     ,guard (diHashIdentifier d) >>
->      PrefixedVariable <$> char '#' <*> identifierString
+>      PrefixedVariable <$> char '#' <*> identifierString d
 >     ]
 
 > positionalArg :: Dialect -> Parser SQLToken
@@ -301,7 +301,7 @@ x'hexidecimal string'
 >         -- use try because of ambiguity with symbols and with
 >         -- positional arg
 >         delim <- (\x -> T.concat ["$",x,"$"])
->                  <$> try (char '$' *> option "" identifierString <* char '$')
+>                  <$> try (char '$' *> option "" (identifierString d) <* char '$')
 >         SqlString delim delim  <$> (T.pack <$> manyTill anySingle (try $ string delim))
 >     normalString = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix False "")
 >     normalStringSuffix :: Bool -> Text -> Parser Text
@@ -546,7 +546,7 @@ a : followed by an identifier character will look like a host param
 followed by = or : makes a different symbol
 
 >     | Symbol ":" <- a
->     , checkFirstBChar (\x -> isIdentifierChar x || x `elem` [':','=']) = False
+>     , checkFirstBChar (\x -> isIdentifierChar d x || x `elem` [':','=']) = False
 
 two symbols next to eachother will fail if the symbols can combine and
 (possibly just the prefix) look like a different symbol
@@ -597,7 +597,7 @@ cannot follow a symbol ending in : with another token starting with :
 unquoted identifier followed by an identifier letter
 
 >    | Identifier Nothing _ <- a
->    , checkFirstBChar isIdentifierChar = False
+>    , checkFirstBChar (isIdentifierChar d) = False
 
 a quoted identifier using ", followed by a " will fail
 
@@ -607,7 +607,7 @@ a quoted identifier using ", followed by a " will fail
 prefixed variable followed by an identifier char will be absorbed
 
 >    | PrefixedVariable {} <- a
->    , checkFirstBChar isIdentifierChar = False
+>    , checkFirstBChar (isIdentifierChar d)= False
 
 a positional arg will absorb a following digit
 

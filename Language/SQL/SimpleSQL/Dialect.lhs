@@ -107,8 +107,10 @@ Data types to represent different dialect options
 >     ,diUnnest :: Bool
 >      -- | allow LIMIT in aggregate function
 >     ,diAggregateLimit :: Bool
+>      -- | allow table names to end with "*" which allows for BigQuery's wildcard table
+>     ,diTableAsteriskSuffix :: Bool
 >     }
->                deriving (Eq,Show,Read,Data,Typeable)
+>     deriving (Eq,Show,Read,Data,Typeable)
 
 > -- | ansi sql 2011 dialect
 > ansi2011 :: Dialect
@@ -136,6 +138,7 @@ Data types to represent different dialect options
 >                    ,diWeekExtract = False
 >                    ,diUnnest = False
 >                    ,diAggregateLimit = False
+>                    ,diTableAsteriskSuffix = False
 >                    }
 
 > -- | mysql dialect
@@ -578,6 +581,7 @@ parser, I think it will be a lot of work.
 >                              , diWeekExtract = True
 >                              , diUnnest = True
 >                              , diIdentifierKeywords = ["current_timestamp", "current_date"]
->                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "ntile"]
+>                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "ntile", "exp"]
 >                              , diAggregateLimit = True
+>                              , diTableAsteriskSuffix = True
 >                              }

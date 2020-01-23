@@ -371,7 +371,9 @@ u&"example quoted"
 > name :: Parser Name
 > name = do
 >     d <- getDialect
->     ((uncurry Name <$> identifierTok (blacklist d)) <|> (Name Nothing <$> symbol "*")) <?> "named identifier"
+>     ((uncurry Name <$> identifierTok (blacklist d))
+>      <|>
+>       (Name Nothing <$> symbol "*")) <?> "named identifier"
 >
 > getDialect :: Parser Dialect
 > getDialect = ask

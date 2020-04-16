@@ -581,7 +581,7 @@ parser, I think it will be a lot of work.
 >                              , diWeekExtract = True
 >                              , diUnnest = True
 >                              , diIdentifierKeywords = ["current_timestamp", "current_date"]
->                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "ntile", "exp"]
+>                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "lower", "ntile", "exp"]
 >                              , diAggregateLimit = True
 >                              , diTableAsteriskSuffix = True
 >                              }

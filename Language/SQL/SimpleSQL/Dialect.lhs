@@ -109,6 +109,8 @@ Data types to represent different dialect options
 >     ,diAggregateLimit :: Bool
 >      -- | allow table names to end with "*" which allows for BigQuery's wildcard table
 >     ,diTableAsteriskSuffix :: Bool
+>      -- | allow SQL strings to include escaped characters with a backslash
+>     ,diBackslashEscapeQuotedString :: Bool
 >     }
 >     deriving (Eq,Show,Read,Data,Typeable)
 
@@ -139,6 +141,7 @@ Data types to represent different dialect options
 >                    ,diUnnest = False
 >                    ,diAggregateLimit = False
 >                    ,diTableAsteriskSuffix = False
+>                    ,diBackslashEscapeQuotedString = False
 >                    }
 
 > -- | mysql dialect
@@ -584,4 +587,5 @@ parser, I think it will be a lot of work.
 >                              , diAppKeywords = ["current_timestamp", "current_date", "offset", "unnest", "date","upper", "lower", "ntile", "exp"]
 >                              , diAggregateLimit = True
 >                              , diTableAsteriskSuffix = True
+>                              , diBackslashEscapeQuotedString = True -- this is necessary because BigQuery does not support "''" standard SQL single-quoting of strings.
 >                              }

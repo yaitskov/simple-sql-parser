@@ -303,15 +303,15 @@ x'hexidecimal string'
 >         delim <- (\x -> T.concat ["$",x,"$"])
 >                  <$> try (char '$' *> option "" (identifierString d) <* char '$')
 >         SqlString delim delim  <$> (T.pack <$> manyTill anySingle (try $ string delim))
->     normalString = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix False "")
+>     normalString = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix (diBackslashEscapeQuotedString d || False) "")
 >     normalStringSuffix :: Bool -> Text -> Parser Text
 >     normalStringSuffix allowBackslash t = do
 >         let accepted = '\'' : if allowBackslash then ['\\'] else []
 >         s <- takeWhileP (Just "string suffix") (`notElem` accepted)
 >         -- deal with '' or \' as literal quote character
 >         choice [do
->                 ctu <- choice ["''" <$ try (string "''")
->                               ,"\\'" <$ string "\\'"
+>                 ctu <- choice ["'" <$ try (string "''")
+>                               ,"'" <$ string "\\'"
 >                               ,"\\" <$ char '\\']
 >                 normalStringSuffix allowBackslash $ T.concat [t,s,ctu]
 >                ,T.concat [t,s] <$ char '\'']

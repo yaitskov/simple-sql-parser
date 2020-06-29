@@ -70,16 +70,16 @@ Try to do this when this code is ported to a modern pretty printing lib.
 
 > scalarExpr d (App f es nr) = names f <> parens (commaSep (map (scalarExpr d) es) <> nullsRespect nr)
 
-> scalarExpr dia (AggregateApp f d es od lim nr fil) =
+> scalarExpr dia (AggregateApp f d es nr od lim fil) =
 >     names f
 >     <> parens ((case d of
 >                   Distinct -> text "distinct"
 >                   All -> text "all"
 >                   SQDefault -> empty)
 >                <+> commaSep (map (scalarExpr dia) es)
+>                <+> nullsRespect nr
 >                <+> orderBy dia od
->                <+> me (fetchFirst dia) lim
->                <+> nullsRespect nr)
+>                <+> me (fetchFirst dia) lim)
 >     <+> me (\x -> text "filter"
 >                   <+> parens (text "where" <+> scalarExpr dia x)) fil
 

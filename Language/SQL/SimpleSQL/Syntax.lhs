@@ -151,9 +151,9 @@
 >       {aggName :: [Name] -- ^ aggregate function name
 >       ,aggDistinct :: SetQuantifier -- ^ distinct
 >       ,aggArgs :: [ScalarExpr]-- ^ args
+>       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS> 
 >       ,aggOrderBy :: [SortSpec] -- ^ order by
 >       ,aggFetchFirst :: Maybe ScalarExpr -- ^ fetch/limit
->       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS> 
 >       ,aggFilter :: Maybe ScalarExpr -- ^ filter
 >       }
 >       -- | aggregates with within group

@@ -953,7 +953,7 @@ together.
 > app =
 >     openParen *> choice
 >     [do
->        dis <- duplicates
+>        dis <- option SQDefault duplicates
 >        args <- commaSep1 scalarExpr
 >        respNull <- respectNulls
 >        orderBy' <- option [] orderBy

@@ -200,7 +200,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > import Data.Semigroup ((<>))
 > import qualified Data.Text as T
 > import qualified Data.Text.Read as T
-> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
+> import Text.Megaparsec (State(..), reachOffset, mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
 >                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
 >                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
 >                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
@@ -952,19 +952,10 @@ together.
 > app :: Parser ([Name] -> ScalarExpr)
 > app =
 >     openParen *> choice
->     [do
->      dis <- duplicates
->      args <- commaSep1 scalarExpr
->      orderBy' <- option [] orderBy
->      lim <- optional (guardDialect diAggregateLimit *> fetch)
->      respNull <- respectNulls
->      _ <- closeParen
->      fil <- optional afilter
->      pure (\name' -> AggregateApp name' dis args orderBy' lim respNull fil)
+>     [
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
->     -- handle window query with IGNORE/RESPECT NULLS
->     , try $ do
+>      try $ do -- handle window query with IGNORE/RESPECT NULLS
 >         args <- commaSep1 scalarExpr
 >         nr <- respectNulls
 >         _ <- closeParen
@@ -974,7 +965,7 @@ together.
 >         nr <- respectNulls
 >         _ <- closeParen
 >         pure ((flip3 App) nr args)
->     ,do
+>     , try $ do
 >        commaSep1 scalarExpr
 >        <**> choice
 >           [closeParen *> choice
@@ -986,10 +977,19 @@ together.
 >            <**> (optional afilter <$$$$$> aggAppWithoutDupe)))]
 >      -- no scalarExprs: duplicates and order by not allowed
 >     ,([] <$ closeParen) <**> option ((flip3 App) Nothing) (window Nothing <|> withinGroup)
+>     , do -- handles aggregates (e.g. ARRAY_AGG)
+>        dis <- option SQDefault duplicates
+>        args <- commaSep1 scalarExpr
+>        respNull <- respectNulls
+>        orderBy' <- option [] orderBy
+>        lim <- optional (guardDialect diAggregateLimit *> fetch)
+>        _ <- closeParen
+>        fil <- optional afilter
+>        pure (\name' -> AggregateApp name' dis args respNull orderBy' lim fil)
 >     ]
 >   where
->     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es [] Nothing Nothing f
->     aggAppWithoutDupe name' args ord lim = AggregateApp name' SQDefault args ord lim Nothing
+>     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es Nothing [] Nothing f
+>     aggAppWithoutDupe name' args ord lim = AggregateApp name' SQDefault args Nothing ord lim
 
 > afilter :: Parser ScalarExpr
 > afilter = keyword_ "filter" *> parens (keyword_ "where" *> scalarExpr)

@@ -965,7 +965,7 @@ together.
 >         nr <- respectNulls
 >         _ <- closeParen
 >         pure ((flip3 App) nr args)
->     , do
+>     , try $ do
 >        commaSep1 scalarExpr
 >        <**> choice
 >           [closeParen *> choice

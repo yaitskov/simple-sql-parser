@@ -952,19 +952,10 @@ together.
 > app :: Parser ([Name] -> ScalarExpr)
 > app =
 >     openParen *> choice
->     [do
->        dis <- option SQDefault duplicates
->        args <- commaSep1 scalarExpr
->        respNull <- respectNulls
->        orderBy' <- option [] orderBy
->        lim <- optional (guardDialect diAggregateLimit *> fetch)
->        _ <- closeParen
->        fil <- optional afilter
->        pure (\name' -> AggregateApp name' dis args respNull orderBy' lim fil)
+>     [
 >      -- separate cases with no all or distinct which must have at
 >      -- least one scalar expr
->     -- handle window query with IGNORE/RESPECT NULLS
->     , try $ do
+>      try $ do -- handle window query with IGNORE/RESPECT NULLS
 >         args <- commaSep1 scalarExpr
 >         nr <- respectNulls
 >         _ <- closeParen
@@ -974,7 +965,7 @@ together.
 >         nr <- respectNulls
 >         _ <- closeParen
 >         pure ((flip3 App) nr args)
->     ,do
+>     , do
 >        commaSep1 scalarExpr
 >        <**> choice
 >           [closeParen *> choice
@@ -986,6 +977,15 @@ together.
 >            <**> (optional afilter <$$$$$> aggAppWithoutDupe)))]
 >      -- no scalarExprs: duplicates and order by not allowed
 >     ,([] <$ closeParen) <**> option ((flip3 App) Nothing) (window Nothing <|> withinGroup)
+>     , do -- handles aggregates (e.g. ARRAY_AGG)
+>        dis <- option SQDefault duplicates
+>        args <- commaSep1 scalarExpr
+>        respNull <- respectNulls
+>        orderBy' <- option [] orderBy
+>        lim <- optional (guardDialect diAggregateLimit *> fetch)
+>        _ <- closeParen
+>        fil <- optional afilter
+>        pure (\name' -> AggregateApp name' dis args respNull orderBy' lim fil)
 >     ]
 >   where
 >     aggAppWithoutDupeOrd n es f = AggregateApp n SQDefault es Nothing [] Nothing f

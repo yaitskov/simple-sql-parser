@@ -40,7 +40,7 @@ directly without the separately testing lexing stage.
 >                    ,try,oneOf,(<|>),choice,eof
 >                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), getSourcePos, initialPos
 >                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..),single
->                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..))
+>                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut)
 > import qualified Text.Megaparsec.Char.Lexer as Lex
 > import Text.Megaparsec.Char (string, char, space1)
 > --import Language.SQL.SimpleSQL.Combinators
@@ -303,7 +303,15 @@ x'hexidecimal string'
 >         delim <- (\x -> T.concat ["$",x,"$"])
 >                  <$> try (char '$' *> option "" (identifierString d) <* char '$')
 >         SqlString delim delim  <$> (T.pack <$> manyTill anySingle (try $ string delim))
->     normalString = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix (diBackslashEscapeQuotedString d || False) "")
+>     escapeChar = do
+>       t <- anySingleBut '\''
+>       if t == '\\' then
+>         oneOf ['\\', '\'', '"']
+>       else
+>         pure t
+>     normalString | diBackslashEscapeQuotedString d =
+>       SqlString "'" "'" <$> between (char '\'') (char '\'') (T.pack <$> many escapeChar)
+>                  | otherwise = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix (diBackslashEscapeQuotedString d || False) "")
 >     normalStringSuffix :: Bool -> Text -> Parser Text
 >     normalStringSuffix allowBackslash t = do
 >         let accepted = '\'' : if allowBackslash then ['\\'] else []

@@ -304,13 +304,10 @@ x'hexidecimal string'
 >                  <$> try (char '$' *> option "" (identifierString d) <* char '$')
 >         SqlString delim delim  <$> (T.pack <$> manyTill anySingle (try $ string delim))
 >     escapeChar = do
->       t <- anySingleBut '\''
->       if t == '\\' then
->         oneOf ['\\', '\'', '"']
->       else
->         pure t
+>       _ <- single '\\'
+>       oneOf ['\\', '\'', '"'] <|> (single 'n' *> pure '\n') <|> (single 't' *> pure '\t')
 >     normalString | diBackslashEscapeQuotedString d =
->       SqlString "'" "'" <$> between (char '\'') (char '\'') (T.pack <$> many escapeChar)
+>       SqlString "'" "'" <$> between (char '\'') (char '\'') (T.pack <$> many (escapeChar <|> anySingleBut '\''))
 >                  | otherwise = SqlString "'" "'" <$> (char '\'' *> normalStringSuffix (diBackslashEscapeQuotedString d || False) "")
 >     normalStringSuffix :: Bool -> Text -> Parser Text
 >     normalStringSuffix allowBackslash t = do

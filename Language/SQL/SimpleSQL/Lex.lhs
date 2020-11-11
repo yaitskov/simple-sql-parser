@@ -54,7 +54,6 @@ directly without the separately testing lexing stage.
 > import Data.Proxy
 > import qualified Data.List.NonEmpty as NE
 > import Data.List
-> import Data.Semigroup (Semigroup, (<>))
 >
 > -- | Represents a lexed token
 > data SQLToken
@@ -169,7 +168,9 @@ TODO: try to make all parsers applicative only
 >     let (l',c') = fromMaybe (1,1) p
 >         freshState = State { stateInput = T.pack src,
 >                              stateOffset = 0,
->                              statePosState = freshPosState }
+>                              statePosState = freshPosState,
+>                              stateParseErrors = mempty
+>                            }
 >         freshPosState = PosState {
 >           pstateOffset = 0,
 >           pstateInput = T.pack src,

@@ -17,7 +17,7 @@
 >     ,optionSuffix
 >     ) where
 
-> import Control.Applicative ((<$>), (<*>), (<**>), pure, Applicative)
+> import Control.Applicative ((<**>))
 > import Text.Megaparsec (option,many, MonadParsec)
 
 a possible issue with the option suffix is that it enforces left

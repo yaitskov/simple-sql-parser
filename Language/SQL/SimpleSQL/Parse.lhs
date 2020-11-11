@@ -189,18 +189,15 @@ fixing them in the syntax but leaving them till the semantic checking
 >     )
 > where
 
-> import Control.Monad (guard, void)
-
-> import Control.Applicative ((<$), (<$>), (<*>) ,(<*), (*>), (<**>), pure)
+> import Control.Applicative ((<**>))
 > import Control.Applicative.Permutations
 > import Control.Monad.Combinators.Expr as E
 > import Control.Monad.Reader
 > import Data.Void
 > import Data.Char (isDigit)
-> import Data.Semigroup ((<>))
 > import qualified Data.Text as T
 > import qualified Data.Text.Read as T
-> import Text.Megaparsec (State(..), reachOffset, mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token(..)
+> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token
 >                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
 >                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
 >                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
@@ -266,7 +263,9 @@ converts the error return to the nice wrapper
 >       Right lexed -> do
 >         let freshState = State { stateInput = lexed,
 >                                  stateOffset = 0,
->                                  statePosState = freshPosState}
+>                                  statePosState = freshPosState,
+>                                  stateParseErrors = mempty
+>                                }
 >             freshPosState = PosState { pstateOffset = 0,
 >                                        pstateInput = lexed,
 >                                        pstateSourcePos = SourcePos {

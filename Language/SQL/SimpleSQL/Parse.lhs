@@ -177,7 +177,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > {-# LANGUAGE TupleSections #-}
 > {-# LANGUAGE OverloadedStrings #-}
 > {-# LANGUAGE TypeSynonymInstances #-}
-> {-# LANGUAGE FlexibleInstances #-} 
+> {-# LANGUAGE FlexibleInstances #-}
 > -- | This is the module with the parser functions.
 > module Language.SQL.SimpleSQL.Parse
 >     (parseQueryExpr
@@ -213,10 +213,10 @@ fixing them in the syntax but leaving them till the semantic checking
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
 > import qualified Data.List.NonEmpty as NE
->
+
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
 > type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
->
+
 
 This helper function takes the parser given and:
 
@@ -236,7 +236,7 @@ converts the error return to the nice wrapper
 >         convertError :: PosState T.Text -> ParseError T.Text Void -> ParseError L.SQLTokenStream Void
 >         convertError posState (TrivialError a b c') = TrivialError a b' c''
 >           where
->             (spos, _, _) = reachOffset a posState
+>             spos = pstateSourcePos posState
 >             b' = fmap convErrorItem b
 >             c'' = S.map convErrorItem c'
 >             convErrorItem :: ErrorItem (Token T.Text) -> ErrorItem (Token L.SQLTokenStream)
@@ -249,7 +249,7 @@ converts the error return to the nice wrapper
 >               ErrorFail s -> ErrorFail s
 >               ErrorIndentation o s1 s2 -> ErrorIndentation o s1 s2
 >               ErrorCustom _ -> error "impossible- unused custom error type"
->         convertErrors errs = let posState = bundlePosState errs 
+>         convertErrors errs = let posState = bundlePosState errs
 >                                  spos = pstateSourcePos posState
 >                              in
 >           ParseErrorBundle { bundleErrors = NE.map (convertError posState) (bundleErrors errs)
@@ -259,7 +259,7 @@ converts the error return to the nice wrapper
 >                                                        , pstateTabWidth = pstateTabWidth (bundlePosState errs)
 >                                                        , pstateLinePrefix = pstateLinePrefix (bundlePosState errs)
 >                                                        }
->           
+
 > }
 >     case L.lexSQL d f (Just (l,c)) src of
 >       Left err -> Left (convertErrors err)
@@ -318,7 +318,7 @@ converts the error return to the nice wrapper
 >                 -> String
 >                    -- ^ the SQL source to parse
 >                 -> Either ParseErrors [Statement]
-> parseStatements = wrapParse statements 
+> parseStatements = wrapParse statements
 
 > -- | Parses a scalar expression.
 > parseScalarExpr :: Dialect
@@ -374,7 +374,7 @@ u&"example quoted"
 >     ((uncurry Name <$> identifierTok (blacklist d))
 >      <|>
 >       (Name Nothing <$> symbol "*")) <?> "named identifier"
->
+
 > getDialect :: Parser Dialect
 > getDialect = ask
 
@@ -388,7 +388,7 @@ todo: replace (:[]) with a named function all over
 >   where
 >     anotherName :: Parser ([Name] -> [Name])
 >     anotherName = try ((:) <$> (symbol "." *> name))-}
->
+
 > names :: Parser [Name]
 > names = sepBy1 name (symbol ".")
 
@@ -504,7 +504,7 @@ factoring in this function, and it is a little dense.
 >     (rowTypeName <|> intervalTypeName <|> otherTypeName)
 >     <??*> tnSuffix
 >   where
->     rowTypeName = 
+>     rowTypeName =
 >       keyword_ "row" >> RowTypeName <$> parens (commaSep1 rowField)
 >     rowField = (,) <$> name <*> typeName
 >     ----------------------------
@@ -560,7 +560,7 @@ factoring in this function, and it is a little dense.
 >     reservedTypeNames = do
 >         d <- getDialect
 >         (:[]) . Name Nothing . T.unwords <$> makeKeywordTree (diSpecialTypeNames d)
->         
+
 
 = Scalar expressions
 
@@ -612,7 +612,7 @@ select x from t where x > :param
 > exceptColumns = do
 >  keyword_ "except"
 >  flip ExceptColumns <$> parens (commaSep names)
->
+
 
 == parens
 
@@ -658,7 +658,7 @@ cast: cast(expr as type)
 >   where funcname = case safe of
 >                      CastSafe -> "safe_cast"
 >                      CastStandard -> "cast"
->
+
 > -- BigQuery-specific
 > safe_cast :: Parser ScalarExpr
 > safe_cast = castX CastSafe
@@ -841,7 +841,7 @@ target_string
 > -- | Special case for BigQuery which adds context after an alias
 > --     { UNNEST( array_expression ) | UNNEST( array_path ) | array_path }
 > --      [ [ AS ] alias ] [ WITH OFFSET [ [ AS ] alias ] ] |
->
+
 > unnest :: Parser TableRef
 > unnest = do
 >   keyword_ "unnest"
@@ -857,7 +857,7 @@ target_string
 >       emptyName = Iden [Name Nothing ""]
 >       withOffsetA = maybe emptyName (\wo -> maybe Star (Iden . (:[])) wo) mOffset
 >   pure (TRFunction [Name Nothing "unnest"] $ [arg1, aliasA, withOffsetA])
->
+
 > -- | Special case for BigQuery which allows for aliased arguments.
 > struct :: Parser ScalarExpr
 > struct = do
@@ -872,7 +872,7 @@ target_string
 >         Nothing -> []
 >         Just types -> map (\t -> ("<>", t)) types
 >   pure (SpecialOpK [Name Nothing "struct"] Nothing args)
->
+
 > -- | Parse BigQuery struct type definition.
 > structType :: Parser [ScalarExpr]
 > structType = do
@@ -880,7 +880,7 @@ target_string
 >   -- the struct type in angle brackets can either be typed names or names of other columns
 >   -- struct<int64>
 >   -- struct<a int64, b string>
->       emptyName = [Name Nothing "<>"] 
+>       emptyName = [Name Nothing "<>"]
 >       typeP = try (BinOp <$> idenExpr <*> pure emptyName <*> idenExpr) <|>
 >               BinOp <$> pure (Iden [Name Nothing "<>"]) <*> pure emptyName <*> idenExpr
 >   angleBrackets (commaSep typeP)
@@ -972,7 +972,7 @@ together.
 >                          [withinGroup
 >                          ,(Just <$> afilter) <$$$> aggAppWithoutDupeOrd
 >                          ,pure ((flip3 App) Nothing)]
->           ,(orderBy 
+>           ,(orderBy
 >            <**> ((optional (guardDialect diAggregateLimit *> fetch) <* closeParen)
 >            <**> (optional afilter <$$$$$> aggAppWithoutDupe)))]
 >      -- no scalarExprs: duplicates and order by not allowed
@@ -1205,7 +1205,7 @@ wanted to avoid extensibility and to not be concerned with parse error
 messages, but both of these are too important.
 
 > data AssocCompat = AssocLeft | AssocRight | AssocNone
-> 
+
 > opTable :: Bool -> [[Operator Parser ScalarExpr]]
 > opTable bExpr =
 >         [-- parse match and quantified comparisons as postfix ops
@@ -1520,7 +1520,7 @@ allows offset and fetch in either order
 > offsetFetch = runPermutation ((,) <$>
 >                                   toPermutationWithDefault Nothing (Just <$> offset) <*>
 >                                   toPermutationWithDefault Nothing (Just <$> fetch))
->                              
+
 
 > offset :: Parser ScalarExpr
 > offset = keyword_ "offset" *> scalarExpr
@@ -2183,7 +2183,7 @@ It is only allowed when all the strings are quoted with ' atm.
 >       (Nothing, L.Symbol p) -> Just p
 >       (Just s, L.Symbol p) | s == p -> Just p
 >       _ -> Nothing)
->
+
 > identifierTok :: [T.Text] -> Parser (Maybe (T.Text, T.Text), T.Text)
 > identifierTok blackList = do
 >     d <- getDialect
@@ -2196,17 +2196,17 @@ It is only allowed when all the strings are quoted with ' atm.
 >                  _ -> Nothing)
 
 > unquotedIdentifierTok :: [T.Text] -> Maybe T.Text -> Parser T.Text
-> unquotedIdentifierTok blackList kw = 
+> unquotedIdentifierTok blackList kw =
 >   mytoken (\tok ->
 >     case (kw,tok) of
 >       (Nothing, L.Identifier Nothing p) | T.toLower p `notElem` blackList -> Just p
 >       (Just k, L.Identifier Nothing p) | k == T.toLower p -> Just p
 >       _ -> Nothing)
->
+
 > mytoken :: (L.SQLToken -> Maybe a) -> Parser a
 > mytoken f = token (\tokLoc ->
 >                       f (L.tokenVal tokLoc)) mempty
->
+
 > unsignedInteger :: Parser Integer
 > unsignedInteger = do
 >  num <- sqlNumberTok True <?> "natural number"

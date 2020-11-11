@@ -130,15 +130,10 @@ directly without the separately testing lexing stage.
 >         offendingLine line = T.unpack (prettyTokens ansi2011 (map tokenVal (offendingLineTokens line)))
 >     in --since we toss away whitespace from the lexer stream, we make a reasonable guess at the column position, but it can be wrong
 >     case drop (o - pstateOffset pst) currentStream of
->       [] -> ( (pstateSourcePos pst) { sourceColumn = if null currentStream then
->                                                        sourceColumn (pstateSourcePos pst)
->                                                      else
->                                                        maximum (map (\tok -> sourceColumn (endPos tok)) currentStream) }
->             , offendingLine (sourceLine (pstateSourcePos pst))
+>       [] -> ( offendingLine (sourceLine (pstateSourcePos pst))
 >             , pst { pstateInput = SQLTokenStream [] })
 >       (x:xs) -> 
->                 ( startPos x
->                 , offendingLine (sourceLine (startPos x))
+>                 ( offendingLine (sourceLine (startPos x))
 >                 , pst { pstateInput = SQLTokenStream (x: (x `seq` xs)) })
 > 
 >

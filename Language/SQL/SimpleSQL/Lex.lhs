@@ -40,7 +40,7 @@ directly without the separately testing lexing stage.
 >                    ,try,oneOf,(<|>),choice,eof
 >                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), getSourcePos, initialPos
 >                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..),single
->                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut)
+>                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut, VisualStream (..), TraversableStream (..))
 > import qualified Text.Megaparsec.Char.Lexer as Lex
 > import Text.Megaparsec.Char (string, char, space1)
 > --import Language.SQL.SimpleSQL.Combinators
@@ -54,7 +54,7 @@ directly without the separately testing lexing stage.
 > import Data.Proxy
 > import qualified Data.List.NonEmpty as NE
 > import Data.List
->
+
 > -- | Represents a lexed token
 > data SQLToken
 >     -- | A symbol (in ansi dialect) is one of the following
@@ -63,53 +63,53 @@ directly without the separately testing lexing stage.
 >     -- * single char symbols: * + -  < >  ^ / %  ~ & | ? ( ) [ ] , ; ( )
 >     --
 >     = Symbol Text
->
+
 >     -- | This is an identifier or keyword. The first field is
 >     -- the quotes used, or nothing if no quotes were used. The quotes
 >     -- can be " or u& or something dialect specific like []
 >     | Identifier (Maybe (Text,Text)) Text
->
+
 >     -- | This is a prefixed variable symbol, such as :var, @var or #var
 >     -- (only :var is used in ansi dialect)
 >     | PrefixedVariable Char Text
->
+
 >     -- | This is a positional arg identifier e.g. $1
 >     | PositionalArg Int
->
+
 >     -- | This is a string literal. The first two fields are the --
 >     -- start and end quotes, which are usually both ', but can be
 >     -- the character set (one of nNbBxX, or u&, U&), or a dialect
 >     -- specific string quoting (such as $$ in postgres)
 >     | SqlString Text Text Text
->
+
 >     -- | A number literal (integral or otherwise), stored in original format
 >     -- unchanged
 >     | SqlNumber Text
->
+
 >       deriving (Eq,Show, Ord)
 
 
 > type Parser = Parsec Void Text
 > type ParseError = ParseErrorBundle Text Void
->
+
 
 > data WithPos a = WithPos
 >  { startPos :: SourcePos
 >  , endPos :: SourcePos
 >  , tokenVal :: a }
 >  deriving (Eq, Ord, Show)
->  
+
 > newtype SQLTokenStream = SQLTokenStream { unSQLTokenStream :: [WithPos SQLToken] }
 >   deriving (Eq, Show, Semigroup)
->
+
 > -- Discards positioning.
 > sqlTokenStreamAsList :: SQLTokenStream -> [SQLToken]
 > sqlTokenStreamAsList (SQLTokenStream l) = map tokenVal l
-> 
+
 > instance Stream SQLTokenStream where
 >   type Token SQLTokenStream = WithPos SQLToken
 >   type Tokens SQLTokenStream = [WithPos SQLToken]
->
+
 >   tokenToChunk Proxy t = [t]
 >   tokensToChunk Proxy ts = ts
 >   chunkToTokens Proxy = id
@@ -121,7 +121,11 @@ directly without the separately testing lexing stage.
 >                                | null ts = Nothing
 >                                | otherwise = let (x, ts') = splitAt n ts in Just (x, SQLTokenStream ts')
 >   takeWhile_ f (SQLTokenStream ts) = let (x, ts') = span f ts in (x, SQLTokenStream ts')
+
+> instance VisualStream SQLTokenStream where
 >   showTokens Proxy = intercalate "," . NE.toList . fmap (unpack . prettyToken ansi2011 . tokenVal)
+
+> instance TraversableStream SQLTokenStream where
 >   reachOffset o pst@PosState{} =
 >     let offendingLineTokens line = takeWhile (\tok -> line == sourceLine (startPos tok)) (scrollToLine line)
 >         currentStream = unSQLTokenStream (pstateInput pst)
@@ -129,13 +133,11 @@ directly without the separately testing lexing stage.
 >         offendingLine line = T.unpack (prettyTokens ansi2011 (map tokenVal (offendingLineTokens line)))
 >     in --since we toss away whitespace from the lexer stream, we make a reasonable guess at the column position, but it can be wrong
 >     case drop (o - pstateOffset pst) currentStream of
->       [] -> ( offendingLine (sourceLine (pstateSourcePos pst))
+>       [] -> ( Just (offendingLine (sourceLine (pstateSourcePos pst)))
 >             , pst { pstateInput = SQLTokenStream [] })
->       (x:xs) -> 
->                 ( offendingLine (sourceLine (startPos x))
+>       (x:xs) ->
+>                 ( Just (offendingLine (sourceLine (startPos x)))
 >                 , pst { pstateInput = SQLTokenStream (x: (x `seq` xs)) })
-> 
->
 
 > -- | Pretty printing, if you lex a bunch of tokens, then pretty
 > -- print them, should should get back exactly the same string
@@ -147,7 +149,7 @@ directly without the separately testing lexing stage.
 > prettyToken _ (PositionalArg p) = T.cons '$' (T.pack (show p))
 > prettyToken _ (SqlString s e t) = s <> t <> e
 > prettyToken _ (SqlNumber r) = r
->
+
 > prettyTokens :: Dialect -> [SQLToken] -> Text
 > prettyTokens d ts = T.intercalate " " $ map (prettyToken d) ts
 
@@ -180,11 +182,11 @@ TODO: try to make all parsers applicative only
 >               sourceColumn = mkPos c'},
 >             pstateTabWidth = defaultTabWidth,
 >             pstateLinePrefix = ""}
->     in 
+>     in
 >       snd $ runParser' (SQLTokenStream <$> (sc *> many (sqlToken dialect) <* eof)) freshState
 
->       
-  
+
+
 
 > -- | parser for a sql token
 > sqlToken :: Dialect -> Parser (WithPos SQLToken)
@@ -254,7 +256,7 @@ u&"unicode quoted identifier"
 This parses a valid identifier without quotes.
 
 > identifierString :: Dialect -> Parser Text
-> identifierString di = 
+> identifierString di =
 >     startsWith (\c -> c == '_' || isAlpha c) (isIdentifierChar di)
 
 this can be moved to the dialect at some point

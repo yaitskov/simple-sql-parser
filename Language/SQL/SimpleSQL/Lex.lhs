@@ -21,6 +21,7 @@ directly without the separately testing lexing stage.
 > {-# LANGUAGE OverloadedStrings #-}
 > {-# LANGUAGE TypeFamilies #-}
 > {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+> {-# LANGUAGE CPP #-}
 > module Language.SQL.SimpleSQL.Lex
 >     (SQLToken(..)
 >     ,SQLTokenStream(..)
@@ -40,7 +41,10 @@ directly without the separately testing lexing stage.
 >                    ,try,oneOf,(<|>),choice,eof
 >                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), getSourcePos, initialPos
 >                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..),single
->                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut, VisualStream (..), TraversableStream (..))
+>                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut)
+#if MIN_VERSION_megaparsec(9,0,0)
+> import Text.Megaparsec (VisualStream (..), TraversableStream (..))
+#endif
 > import qualified Text.Megaparsec.Char.Lexer as Lex
 > import Text.Megaparsec.Char (string, char, space1)
 > --import Language.SQL.SimpleSQL.Combinators
@@ -121,11 +125,13 @@ directly without the separately testing lexing stage.
 >                                | null ts = Nothing
 >                                | otherwise = let (x, ts') = splitAt n ts in Just (x, SQLTokenStream ts')
 >   takeWhile_ f (SQLTokenStream ts) = let (x, ts') = span f ts in (x, SQLTokenStream ts')
-
+#if MIN_VERSION_megaparsec(9,0,0)
 > instance VisualStream SQLTokenStream where
+#endif
 >   showTokens Proxy = intercalate "," . NE.toList . fmap (unpack . prettyToken ansi2011 . tokenVal)
-
+#if MIN_VERSION_megaparsec(9,0,0)
 > instance TraversableStream SQLTokenStream where
+#endif
 >   reachOffset o pst@PosState{} =
 >     let offendingLineTokens line = takeWhile (\tok -> line == sourceLine (startPos tok)) (scrollToLine line)
 >         currentStream = unSQLTokenStream (pstateInput pst)
@@ -133,10 +139,18 @@ directly without the separately testing lexing stage.
 >         offendingLine line = T.unpack (prettyTokens ansi2011 (map tokenVal (offendingLineTokens line)))
 >     in --since we toss away whitespace from the lexer stream, we make a reasonable guess at the column position, but it can be wrong
 >     case drop (o - pstateOffset pst) currentStream of
->       [] -> ( Just (offendingLine (sourceLine (pstateSourcePos pst)))
+>       [] -> (
+#if MIN_VERSION_megaparsec(9,0,0)
+>              Just
+#endif
+>              (offendingLine (sourceLine (pstateSourcePos pst)))
 >             , pst { pstateInput = SQLTokenStream [] })
 >       (x:xs) ->
->                 ( Just (offendingLine (sourceLine (startPos x)))
+>                 (
+#if MIN_VERSION_megaparsec(9,0,0)
+>                   Just
+#endif
+>                   (offendingLine (sourceLine (startPos x)))
 >                 , pst { pstateInput = SQLTokenStream (x: (x `seq` xs)) })
 
 > -- | Pretty printing, if you lex a bunch of tokens, then pretty

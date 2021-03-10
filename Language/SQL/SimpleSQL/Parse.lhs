@@ -184,6 +184,7 @@ fixing them in the syntax but leaving them till the semantic checking
 >     ,parseScalarExpr
 >     ,parseStatement
 >     ,parseStatements
+>     ,parseTableRefs
 >     ,ParseErrors
 >     ,L.SQLTokenStream(..)
 >     )
@@ -304,6 +305,13 @@ converts the error return to the nice wrapper
 >                -> Either ParseErrors Statement
 > parseStatement = wrapParse topLevelStatement
 
+> -- | Parses a TableRef
+> parseTableRefs :: Dialect
+>               -> FilePath
+>               -> Maybe (Int, Int)
+>               -> String
+>               -> Either ParseErrors [TableRef]
+> parseTableRefs = wrapParse from 
 
 > -- | Parses a list of statements, with semi colons between
 > -- them. The final semicolon is optional.

@@ -15,10 +15,10 @@ Tests for oracle dialect parsing
 > oracleLobUnits :: TestItem
 > oracleLobUnits = Group "oracleLobUnits" (map (uncurry (TestScalarExpr oracle))
 >     [("cast (a as varchar2(3 char))"
->      ,Cast (Iden [Name Nothing "a"]) (
+>      ,Cast CastStandard (Iden [Name Nothing "a"]) (
 >          PrecLengthTypeName [Name Nothing "varchar2"] 3 Nothing (Just PrecCharacters)))
 >      ,("cast (a as varchar2(3 byte))"
->      ,Cast (Iden [Name Nothing "a"]) (
+>      ,Cast CastStandard (Iden [Name Nothing "a"]) (
 >          PrecLengthTypeName [Name Nothing "varchar2"] 3 Nothing (Just PrecOctets)))
 >      ]
 >     ++ [TestStatement oracle

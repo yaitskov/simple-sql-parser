@@ -311,7 +311,7 @@ converts the error return to the nice wrapper
 >               -> Maybe (Int, Int)
 >               -> String
 >               -> Either ParseErrors [TableRef]
-> parseTableRefs = wrapParse from 
+> parseTableRefs = wrapParse from
 
 > -- | Parses a list of statements, with semi colons between
 > -- them. The final semicolon is optional.
@@ -852,7 +852,7 @@ target_string
 > unnest :: Parser TableRef
 > unnest = do
 >   keyword_ "unnest"
->   arg1 <- parens scalarExpr
+>   arg1 <- parens (arrayCtor <|> scalarExpr)
 >   -- we really shouldn't be consuming an alias here, but we have no choice unless we want to pollute the ADTs
 >   let alias' = optional (optional (keyword_ "as") *> name)
 >   mAlias <- alias'

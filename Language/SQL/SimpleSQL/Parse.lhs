@@ -852,7 +852,7 @@ target_string
 > unnest :: Parser TableRef
 > unnest = do
 >   keyword_ "unnest"
->   arg1 <- parens (arrayCtor <|> scalarExpr)
+>   arg1 <- parens ((brackets (commaSep simpleLiteral)) <|> (many scalarExpr))
 >   -- we really shouldn't be consuming an alias here, but we have no choice unless we want to pollute the ADTs
 >   let alias' = optional (optional (keyword_ "as") *> name)
 >   mAlias <- alias'
@@ -863,7 +863,7 @@ target_string
 >   let aliasA = maybe emptyName (Iden . (:[])) mAlias
 >       emptyName = Iden [Name Nothing ""]
 >       withOffsetA = maybe emptyName (\wo -> maybe Star (Iden . (:[])) wo) mOffset
->   pure (TRFunction [Name Nothing "unnest"] $ [arg1, aliasA, withOffsetA])
+>   pure (TRUnnestArrayLiteral [Name Nothing "unnest"] arg1 [aliasA, withOffsetA])
 
 > -- | Special case for BigQuery which allows for aliased arguments.
 > struct :: Parser ScalarExpr

@@ -9,12 +9,24 @@ expression
 
 
 > tableRefTests :: TestItem
-> tableRefTests = Group "tableRefTests" $ map (uncurry (TestQueryExpr ansi2011))
+> tableRefTests = Group "tableRefTests" $ map (uncurry (TestQueryExpr bigquery))
 >     [("select a from t"
 >      ,ms [TRSimple [Name Nothing "t"]])
 
 >      ,("select a from f(a)"
 >       ,ms [TRFunction [Name Nothing "f"] [Iden [Name Nothing "a"]]])
+
+>      ,("select a from f(a, b)"
+>       ,ms [TRFunction [Name Nothing "f"] [Iden [Name Nothing "a"], Iden [Name Nothing "b"]]])
+
+>      ,("select a from unnest([1, 2])"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [NumLit "1", NumLit "2"] [Iden [Name Nothing ""], Iden [Name Nothing ""]]])
+
+>      ,("select a from unnest(['1', '2'])"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [StringLit "'" "'" "1", StringLit "'" "'" "2"] [Iden [Name Nothing ""], Iden [Name Nothing ""]]])
+
+>      ,("select a from unnest([1, 2]) as t"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [NumLit "1", NumLit "2"] [Iden [Name Nothing "t"], Iden [Name Nothing ""]]])
 
 >     ,("select a from t,u"
 >      ,ms [TRSimple [Name Nothing "t"], TRSimple [Name Nothing "u"]])

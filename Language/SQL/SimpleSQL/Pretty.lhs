@@ -408,8 +408,9 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >   where
 >     tr (TRSimple t) = names t
 >     tr (TRLateral t) = text "lateral" <+> tr t
->     tr (TRFunction f as) =
->         names f <> parens (commaSep $ map (scalarExpr d) as)
+>     tr (TRFunction f lits) = names f <> parens (commaSep $ map (scalarExpr d) lits)
+>     tr (TRUnnestArrayLiteral f arr lits) =
+>       names f <> parens (scalarExpr d $ Array (Iden [Name Nothing ""]) arr) <> sep (map (scalarExpr d) lits)
 >     tr (TRAlias t a) = sep [tr t, alias a]
 >     tr (TRParens t) = parens $ tr t
 >     tr (TRQueryExpr q) = parens $ queryExpr d q

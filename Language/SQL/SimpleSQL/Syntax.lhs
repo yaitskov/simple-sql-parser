@@ -451,6 +451,8 @@ I'm not sure if this is valid syntax or not.
 >               | TRQueryExpr QueryExpr
 >                 -- | from function(args)
 >               | TRFunction [Name] [ScalarExpr]
+>                 -- | from unnest([1, 2, 3]) as alias
+>               | TRUnnestArrayLiteral [Name] [ScalarExpr] [ScalarExpr]
 >                 -- | from lateral t
 >               | TRLateral TableRef
 >                 -- | ODBC {oj t1 left outer join t2 on expr} syntax

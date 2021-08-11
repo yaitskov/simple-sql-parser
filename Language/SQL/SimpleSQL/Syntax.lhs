@@ -115,7 +115,7 @@
 >     | Star
 
 >     | ExceptColumns ScalarExpr [[Name]] -- ^ BigQuery only - * EXCEPT(a,b,c)
-> 
+>
 >     | Parameter -- ^ Represents a ? in a parameterized query
 >     | PositionalArg Int -- ^ Represents an e.g. $1 in a parameterized query
 >     | HostParameter Text (Maybe Text) -- ^ represents a host
@@ -151,7 +151,7 @@
 >       {aggName :: [Name] -- ^ aggregate function name
 >       ,aggDistinct :: SetQuantifier -- ^ distinct
 >       ,aggArgs :: [ScalarExpr]-- ^ args
->       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS> 
+>       ,aggNullsRespect_ns :: Maybe NullsRespect -- ^ non-standard IGNORE/RESPECT NULLS>
 >       ,aggOrderBy :: [SortSpec] -- ^ order by
 >       ,aggFetchFirst :: Maybe ScalarExpr -- ^ fetch/limit
 >       ,aggFilter :: Maybe ScalarExpr -- ^ filter
@@ -451,8 +451,8 @@ I'm not sure if this is valid syntax or not.
 >               | TRQueryExpr QueryExpr
 >                 -- | from function(args)
 >               | TRFunction [Name] [ScalarExpr]
->                 -- | from unnest([1, 2, 3]) as alias
->               | TRUnnestArrayLiteral [Name] [ScalarExpr] [ScalarExpr]
+>                 -- | from unnest([1, 2, 3]) as unnest_alias with offset as offset_alias
+>               | TRUnnestArrayLiteral [Name] ScalarExpr (Maybe Name) (Maybe Name)
 >                 -- | from lateral t
 >               | TRLateral TableRef
 >                 -- | ODBC {oj t1 left outer join t2 on expr} syntax

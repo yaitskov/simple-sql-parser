@@ -332,13 +332,13 @@ Try to do this when this code is ported to a modern pretty printing lib.
 
 
 > fetchFirst :: Dialect -> ScalarExpr -> Doc
-> fetchFirst dia lim = 
+> fetchFirst dia lim =
 >   if diLimit dia
 >   then text "limit" <+> scalarExpr dia lim
 >   else text "fetch first" <+> scalarExpr dia lim
 >        <+> text "rows only"
 >
-> 
+>
 
 = query expressions
 
@@ -409,8 +409,8 @@ Try to do this when this code is ported to a modern pretty printing lib.
 >     tr (TRSimple t) = names t
 >     tr (TRLateral t) = text "lateral" <+> tr t
 >     tr (TRFunction f lits) = names f <> parens (commaSep $ map (scalarExpr d) lits)
->     tr (TRUnnestArrayLiteral f arr lits) =
->       names f <> parens (scalarExpr d $ Array (Iden [Name Nothing ""]) arr) <> sep (map (scalarExpr d) lits)
+>     tr (TRUnnestArrayLiteral fun array as offsetAlias) =
+>       names fun <> parens (scalarExpr d array) <+> me name as <+> me ((text "with offset" <+>) . name) offsetAlias
 >     tr (TRAlias t a) = sep [tr t, alias a]
 >     tr (TRParens t) = parens $ tr t
 >     tr (TRQueryExpr q) = parens $ queryExpr d q

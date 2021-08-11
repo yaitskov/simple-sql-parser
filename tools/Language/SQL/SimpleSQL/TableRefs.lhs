@@ -20,13 +20,25 @@ expression
 >       ,ms [TRFunction [Name Nothing "f"] [Iden [Name Nothing "a"], Iden [Name Nothing "b"]]])
 
 >      ,("select a from unnest([1, 2])"
->       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [NumLit "1", NumLit "2"] [Iden [Name Nothing ""], Iden [Name Nothing ""]]])
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) Nothing Nothing])
 
 >      ,("select a from unnest(['1', '2'])"
->       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [StringLit "'" "'" "1", StringLit "'" "'" "2"] [Iden [Name Nothing ""], Iden [Name Nothing ""]]])
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [StringLit "'" "'" "1", StringLit "'" "'" "2"]) Nothing Nothing])
+
+>      ,("select a from unnest([1, 2]) t"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) (Just (Name Nothing "t")) Nothing])
 
 >      ,("select a from unnest([1, 2]) as t"
->       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] [NumLit "1", NumLit "2"] [Iden [Name Nothing "t"], Iden [Name Nothing ""]]])
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) (Just (Name Nothing "t")) Nothing])
+
+>      ,("select a from unnest([1, 2]) with offset o"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) Nothing (Just (Name Nothing "o"))])
+
+>      ,("select a from unnest([1, 2]) as t with offset o"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) (Just (Name Nothing "t")) (Just (Name Nothing "o"))])
+
+>      ,("select a from unnest([1, 2]) as t with offset as o"
+>       ,ms [TRUnnestArrayLiteral [Name Nothing "unnest"] (Array (Iden []) [NumLit "1", NumLit "2"]) (Just (Name Nothing "t")) (Just (Name Nothing "o"))])
 
 >     ,("select a from t,u"
 >      ,ms [TRSimple [Name Nothing "t"], TRSimple [Name Nothing "u"]])

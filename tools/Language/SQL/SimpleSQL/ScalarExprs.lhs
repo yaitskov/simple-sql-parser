@@ -147,19 +147,19 @@ Tests for parsing scalar expressions
 > casts :: TestItem
 > casts = Group "operators" $ map (uncurry (TestScalarExpr ansi2011))
 >     [("cast('1' as int)"
->      ,Cast (StringLit "'" "'" "1") $ TypeName [Name Nothing "int"])
+>      ,Cast CastStandard (StringLit "'" "'" "1") $ TypeName [Name Nothing "int"])
 
 >     ,("int '3'"
 >      ,TypedLit (TypeName [Name Nothing "int"]) "3")
 
 >     ,("cast('1' as double precision)"
->      ,Cast (StringLit "'" "'" "1") $ TypeName [Name Nothing "double precision"])
+>      ,Cast CastStandard (StringLit "'" "'" "1") $ TypeName [Name Nothing "double precision"])
 
 >     ,("cast('1' as float(8))"
->      ,Cast (StringLit "'" "'" "1") $ PrecTypeName [Name Nothing "float"] 8)
+>      ,Cast CastStandard (StringLit "'" "'" "1") $ PrecTypeName [Name Nothing "float"] 8)
 
 >     ,("cast('1' as decimal(15,2))"
->      ,Cast (StringLit "'" "'" "1") $ PrecScaleTypeName [Name Nothing "decimal"] 15 2)
+>      ,Cast CastStandard (StringLit "'" "'" "1") $ PrecScaleTypeName [Name Nothing "decimal"] 15 2)
 
 
 >     ,("double precision '3'"
@@ -335,14 +335,14 @@ target_string
 >     [("count(*)",App [Name Nothing "count"] [Star] Nothing)
 
 >     ,("sum(a order by a)"
->     ,AggregateApp [Name Nothing "sum"] SQDefault [Iden [Name Nothing "a"]]
+>     ,AggregateApp [Name Nothing "sum"] SQDefault [Iden [Name Nothing "a"]] Nothing
 >                   [SortSpec (Iden [Name Nothing "a"]) DirDefault NullsOrderDefault] Nothing Nothing)
 
 >     ,("sum(all a)"
->     ,AggregateApp [Name Nothing "sum"] All [Iden [Name Nothing "a"]] [] Nothing Nothing)
+>     ,AggregateApp [Name Nothing "sum"] All [Iden [Name Nothing "a"]] Nothing [] Nothing Nothing)
 
 >     ,("count(distinct a)"
->     ,AggregateApp [Name Nothing "count"] Distinct [Iden [Name Nothing "a"]] [] Nothing Nothing)
+>     ,AggregateApp [Name Nothing "count"] Distinct [Iden [Name Nothing "a"]] Nothing [] Nothing Nothing)
 >     ]
 
 > windowFunctions :: TestItem

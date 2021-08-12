@@ -1201,7 +1201,7 @@ expression
 >         [(ctn ++ " 'test'", TypedLit stn "test")
 >         ]
 >     makeCastTests (ctn, stn) =
->         [("cast('test' as " ++ ctn ++ ")", Cast (StringLit "'" "'" "test") stn)
+>         [("cast('test' as " ++ ctn ++ ")", Cast CastStandard (StringLit "'" "'" "test") stn)
 >         ]
 >     makeTests a = makeSimpleTests a ++ makeCastTests a
 
@@ -1217,7 +1217,7 @@ Define a field of a row type.
 > fieldDefinition = Group "field definition"
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("cast('(1,2)' as row(a int,b char))"
->      ,Cast (StringLit "'" "'" "(1,2)")
+>      ,Cast CastStandard (StringLit "'" "'" "(1,2)")
 >      $ RowTypeName [(Name Nothing "a", TypeName [Name Nothing "int"])
 >                    ,(Name Nothing "b", TypeName [Name Nothing "char"])])]
 
@@ -1680,7 +1680,7 @@ Specify a data conversion.
 > castSpecification = Group "cast specification"
 >     $ map (uncurry (TestScalarExpr ansi2011))
 >     [("cast(a as int)"
->      ,Cast (Iden [Name Nothing "a"]) (TypeName [Name Nothing "int"]))
+>      ,Cast CastStandard (Iden [Name Nothing "a"]) (TypeName [Name Nothing "int"]))
 >     ]
 
 == 6.14 <next value expression>
@@ -2234,7 +2234,7 @@ Specify a datetime value.
 > datetimeScalarExpression :: TestItem
 > datetimeScalarExpression = Group "datetime value expression"
 >     [-- todo: datetime value expression
->      datetimeValueFunction 
+>      datetimeValueFunction
 >     ]
 
 <datetime term> ::= <datetime factor>
@@ -4214,7 +4214,7 @@ Specify a value computed from a collection of rows.
 >     $ map (uncurry (TestScalarExpr ansi2011)) $
 >     [("count(*)",App [Name Nothing "count"] [Star] Nothing)
 >     ,("count(*) filter (where something > 5)"
->      ,AggregateApp [Name Nothing "count"] SQDefault [Star] [] Nothing fil)
+>      ,AggregateApp [Name Nothing "count"] SQDefault [Star] Nothing [] Nothing fil)
 
 gsf
 
@@ -4222,15 +4222,15 @@ gsf
 >     ,("count(distinct a)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    Distinct
->                    [Iden [Name Nothing "a"]] [] Nothing Nothing)
+>                    [Iden [Name Nothing "a"]] Nothing [] Nothing Nothing)
 >     ,("count(all a)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    All
->                    [Iden [Name Nothing "a"]] [] Nothing Nothing)
+>                    [Iden [Name Nothing "a"]] Nothing [] Nothing Nothing)
 >     ,("count(all a) filter (where something > 5)"
 >      ,AggregateApp [Name Nothing "count"]
 >                    All
->                    [Iden [Name Nothing "a"]] [] Nothing fil)
+>                    [Iden [Name Nothing "a"]] Nothing [] Nothing fil)
 >     ] ++ concatMap mkSimpleAgg
 >          ["avg","max","min","sum"
 >          ,"every", "any", "some"
@@ -4260,6 +4260,7 @@ osf
 >         ,AggregateApp [Name Nothing "array_agg"]
 >                        SQDefault
 >                        [Iden [Name Nothing "a"]]
+>                        Nothing
 >                        [SortSpec (Iden [Name Nothing "z"])
 >                             DirDefault NullsOrderDefault]
 >                        Nothing
@@ -4278,13 +4279,14 @@ osf
 >         ,(nm ++ "(distinct a)"
 >          ,AggregateApp [Name Nothing $ pack nm]
 >                        Distinct
->                        [Iden [Name Nothing "a"]] [] Nothing Nothing)]
+>                        [Iden [Name Nothing "a"]] Nothing [] Nothing Nothing)]
 >     mkBsf nm =
 >         [(nm ++ "(a,b)",App [Name Nothing $ pack nm] [Iden [Name Nothing "a"] ,Iden [Name Nothing "b"]] Nothing)
 >         ,(nm ++"(a,b) filter (where something > 5)"
 >           ,AggregateApp [Name Nothing $ pack nm]
 >                         SQDefault
 >                         [Iden [Name Nothing "a"],Iden [Name Nothing "b"]]
+>                         Nothing
 >                         []
 >                         Nothing
 >                         fil)]

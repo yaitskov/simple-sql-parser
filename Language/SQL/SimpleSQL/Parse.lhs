@@ -311,7 +311,7 @@ converts the error return to the nice wrapper
 >               -> Maybe (Int, Int)
 >               -> String
 >               -> Either ParseErrors [TableRef]
-> parseTableRefs = wrapParse from 
+> parseTableRefs = wrapParse from
 
 > -- | Parses a list of statements, with semi colons between
 > -- them. The final semicolon is optional.
@@ -852,18 +852,15 @@ target_string
 > unnest :: Parser TableRef
 > unnest = do
 >   keyword_ "unnest"
->   arg1 <- parens scalarExpr
+>   array <- parens (scalarExpr <|> (Array (Iden []) <$> brackets (commaSep simpleLiteral)))
 >   -- we really shouldn't be consuming an alias here, but we have no choice unless we want to pollute the ADTs
->   let alias' = optional (optional (keyword_ "as") *> name)
->   mAlias <- alias'
->   mOffset <- optional $ try $ do
+>   let alias' = optional (keyword_ "as") *> name
+>   alias <- optional alias'
+>   offsetAlias <- optional $ do
 >     keyword_ "with"
 >     keyword_ "offset"
 >     alias'
->   let aliasA = maybe emptyName (Iden . (:[])) mAlias
->       emptyName = Iden [Name Nothing ""]
->       withOffsetA = maybe emptyName (\wo -> maybe Star (Iden . (:[])) wo) mOffset
->   pure (TRFunction [Name Nothing "unnest"] $ [arg1, aliasA, withOffsetA])
+>   pure (TRUnnestArrayLiteral [Name Nothing "unnest"] array alias offsetAlias)
 
 > -- | Special case for BigQuery which allows for aliased arguments.
 > struct :: Parser ScalarExpr

@@ -183,6 +183,7 @@ fixing them in the syntax but leaving them till the semantic checking
 >     (parseQueryExpr
 >     ,parseScalarExpr
 >     ,parseScalarExprs
+>     ,parseSelectList
 >     ,parseStatement
 >     ,parseStatements
 >     ,parseTableRefs
@@ -353,6 +354,19 @@ converts the error return to the nice wrapper
 >                     -- ^ the SQL source to parse
 >                  -> Either ParseErrors [ScalarExpr]
 > parseScalarExprs = wrapParse $ commaSep1 scalarExpr
+
+> -- | Parses a select list.
+> parseSelectList :: Dialect
+>                    -- ^ dialect of SQL to use
+>                 -> FilePath
+>                    -- ^ filename to use in error messages
+>                 -> Maybe (Int,Int)
+>                    -- ^ line number and column number of the first character
+>                    -- in the source to use in error messages
+>                 -> String
+>                    -- ^ the SQL source to parse
+>                 -> Either ParseErrors [(ScalarExpr,Maybe Name)]
+> parseSelectList = wrapParse selectList
 
 ------------------------------------------------
 

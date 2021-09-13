@@ -182,6 +182,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > module Language.SQL.SimpleSQL.Parse
 >     (parseQueryExpr
 >     ,parseScalarExpr
+>     ,parseScalarExprs
 >     ,parseStatement
 >     ,parseStatements
 >     ,parseTableRefs
@@ -339,6 +340,19 @@ converts the error return to the nice wrapper
 >                    -- ^ the SQL source to parse
 >                 -> Either ParseErrors ScalarExpr
 > parseScalarExpr = wrapParse scalarExpr
+
+> -- | Parses a scalar expressions.
+> parseScalarExprs :: Dialect
+>                     -- ^ dialect of SQL to use
+>                  -> FilePath
+>                     -- ^ filename to use in error messages
+>                  -> Maybe (Int,Int)
+>                     -- ^ line number and column number of the first character
+>                     -- in the source to use in error messages
+>                  -> String
+>                     -- ^ the SQL source to parse
+>                  -> Either ParseErrors [ScalarExpr]
+> parseScalarExprs = wrapParse $ commaSep1 scalarExpr
 
 ------------------------------------------------
 

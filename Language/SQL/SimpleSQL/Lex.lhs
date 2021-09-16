@@ -1,4 +1,3 @@
-
 The parser uses a separate lexer for two reasons:
 
 1. sql syntax is very awkward to parse, the separate lexer makes it
@@ -40,20 +39,17 @@ directly without the separately testing lexing stage.
 >                    ,try,oneOf,(<|>),choice,eof
 >                    ,many,lookAhead,satisfy,takeWhileP, chunk, Parsec, Stream(..), getSourcePos, initialPos
 >                    ,defaultTabWidth, mkPos, runParser', getParserState, takeWhile1P, ParseErrorBundle(..),single
->                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut, VisualStream (..), TraversableStream (..))
+>                    ,notFollowedBy, anySingle, State(..), PosState(..), SourcePos(..), between, anySingleBut)
 > import qualified Text.Megaparsec.Char.Lexer as Lex
 > import Text.Megaparsec.Char (string, char, space1)
-> --import Language.SQL.SimpleSQL.Combinators
 > import Control.Applicative hiding ((<|>), many)
 > import Data.Char
 > import Control.Monad
 > import Data.Maybe
 > import qualified Data.Text as T
-> import Data.Text (Text, unpack)
+> import Data.Text (Text)
 > import Data.Void
 > import Data.Proxy
-> import qualified Data.List.NonEmpty as NE
-> import Data.List
 
 > -- | Represents a lexed token
 > data SQLToken
@@ -121,23 +117,6 @@ directly without the separately testing lexing stage.
 >                                | null ts = Nothing
 >                                | otherwise = let (x, ts') = splitAt n ts in Just (x, SQLTokenStream ts')
 >   takeWhile_ f (SQLTokenStream ts) = let (x, ts') = span f ts in (x, SQLTokenStream ts')
-
-> instance VisualStream SQLTokenStream where
->   showTokens Proxy = intercalate "," . NE.toList . fmap (unpack . prettyToken ansi2011 . tokenVal)
-
-> instance TraversableStream SQLTokenStream where
->   reachOffset o pst@PosState{} =
->     let offendingLineTokens line = takeWhile (\tok -> line == sourceLine (startPos tok)) (scrollToLine line)
->         currentStream = unSQLTokenStream (pstateInput pst)
->         scrollToLine line = dropWhile (\tok -> line /= sourceLine (startPos tok)) currentStream
->         offendingLine line = T.unpack (prettyTokens ansi2011 (map tokenVal (offendingLineTokens line)))
->     in --since we toss away whitespace from the lexer stream, we make a reasonable guess at the column position, but it can be wrong
->     case drop (o - pstateOffset pst) currentStream of
->       [] -> ( Just (offendingLine (sourceLine (pstateSourcePos pst)))
->             , pst { pstateInput = SQLTokenStream [] })
->       (x:xs) ->
->                 ( Just (offendingLine (sourceLine (startPos x)))
->                 , pst { pstateInput = SQLTokenStream (x: (x `seq` xs)) })
 
 > -- | Pretty printing, if you lex a bunch of tokens, then pretty
 > -- print them, should should get back exactly the same string

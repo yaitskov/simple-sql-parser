@@ -178,6 +178,7 @@ fixing them in the syntax but leaving them till the semantic checking
 > {-# LANGUAGE OverloadedStrings #-}
 > {-# LANGUAGE TypeSynonymInstances #-}
 > {-# LANGUAGE FlexibleInstances #-}
+> {-# LANGUAGE GADTs #-}
 > -- | This is the module with the parser functions.
 > module Language.SQL.SimpleSQL.Parse
 >     (parseQueryExpr
@@ -198,19 +199,14 @@ fixing them in the syntax but leaving them till the semantic checking
 > import Data.Char (isDigit)
 > import qualified Data.Text as T
 > import qualified Data.Text.Read as T
-> import Text.Megaparsec (State(..), mkPos, PosState(..), SourcePos(..), defaultTabWidth, runParserT', Token
->                        ,option,between,sepBy,sepBy1,ParsecT, ParseError(..), ErrorItem(..)
->                        ,try,many,some,(<|>),choice,eof,MonadParsec(..)
->                        ,option,optional,ParseErrorBundle(..),ErrorFancy(..)
->                        ,(<?>))
+> import Text.Megaparsec
 > import Data.List (sort,groupBy)
 > import Data.Function (on)
-> import qualified Data.Set as S
 > import Language.SQL.SimpleSQL.Syntax
+> import Language.SQL.SimpleSQL.Errors
 > import Language.SQL.SimpleSQL.Combinators
 > import qualified Language.SQL.SimpleSQL.Lex as L
 > import Data.Maybe
-> import qualified Data.List.NonEmpty as NE
 
 > type Parser = ParsecT Void L.SQLTokenStream (Reader ParseState)
 > type ParseErrors = ParseErrorBundle L.SQLTokenStream Void
@@ -223,7 +219,7 @@ automatically skips leading whitespace
 checks the parser parses all the input using eof
 converts the error return to the nice wrapper
 
-> wrapParse :: Parser a
+> wrapParse :: (Show a) => Parser a
 >           -> Dialect
 >           -> FilePath
 >           -> Maybe (Int,Int)
@@ -231,36 +227,8 @@ converts the error return to the nice wrapper
 >           -> Either ParseErrors a
 > wrapParse parser d f p src = do
 >     let (l,c) = fromMaybe (1,1) p
->         convertError :: PosState T.Text -> ParseError T.Text Void -> ParseError L.SQLTokenStream Void
->         convertError posState (TrivialError a b c') = TrivialError a b' c''
->           where
->             spos = pstateSourcePos posState
->             b' = fmap convErrorItem b
->             c'' = S.map convErrorItem c'
->             convErrorItem :: ErrorItem (Token T.Text) -> ErrorItem (Token L.SQLTokenStream)
->             convErrorItem (Tokens ts) = Tokens ((L.WithPos spos spos (L.Symbol (T.pack (NE.toList ts)))) NE.:| [])
->             convErrorItem (Label la) = Label la
->             convErrorItem EndOfInput = EndOfInput
->         convertError _ (FancyError a b) = FancyError a (S.map convErrorFancy b)
->           where
->             convErrorFancy e = case e of
->               ErrorFail s -> ErrorFail s
->               ErrorIndentation o s1 s2 -> ErrorIndentation o s1 s2
->               ErrorCustom _ -> error "impossible- unused custom error type"
->         convertErrors errs = let posState = bundlePosState errs
->                                  spos = pstateSourcePos posState
->                              in
->           ParseErrorBundle { bundleErrors = NE.map (convertError posState) (bundleErrors errs)
->                            , bundlePosState = PosState { pstateInput = L.SQLTokenStream []
->                                                        , pstateOffset = 1
->                                                        , pstateSourcePos = spos
->                                                        , pstateTabWidth = pstateTabWidth (bundlePosState errs)
->                                                        , pstateLinePrefix = pstateLinePrefix (bundlePosState errs)
->                                                        }
-
-> }
 >     case L.lexSQL d f (Just (l,c)) src of
->       Left err -> Left (convertErrors err)
+>       Left err -> Left $ convertErrorBundle err
 >       Right lexed -> do
 >         let freshState = State { stateInput = lexed,
 >                                  stateOffset = 0,
@@ -275,7 +243,9 @@ converts the error return to the nice wrapper
 >                                          sourceColumn = mkPos c},
 >                                        pstateTabWidth = defaultTabWidth,
 >                                        pstateLinePrefix = ""}
->         snd $ runReader (runParserT' (parser <* eof) freshState) d
+>         case snd $ runReader (runParserT' (parser <* eof) freshState) d of
+>           Left err -> Left $ fixupErrorBundle err
+>           Right result -> Right result
 
 = Public API
 

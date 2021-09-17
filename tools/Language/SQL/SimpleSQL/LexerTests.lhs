@@ -8,7 +8,6 @@ Test for the lexer
 > import Language.SQL.SimpleSQL.TestTypes
 > import Language.SQL.SimpleSQL.Lex (SQLToken(..),tokenListWillPrintAndLex)
 > import Data.List
-> import Data.Semigroup ((<>))
 > import qualified Data.Text as T
 
 > lexerTests :: TestItem
@@ -187,9 +186,9 @@ also: do the testing for the ansi compatibility special cases
 > someValidPostgresOperators l =
 >        [ x
 >        | n <- [1..l]
->        , x <- combos "+-*/<>=~!@#%^&|`?" n 
+>        , x <- combos "+-*/<>=~!@#%^&|`?" n
 >        , not ("--" `isInfixOf` x || "/*" `isInfixOf` x || "*/" `isInfixOf` x)
->        , not (last x `elem` ("+-" :: String)) 
+>        , not (last x `elem` ("+-" :: String))
 >          || or (map (`elem` x) "~!@#%^&|`?")
 >        ]
 

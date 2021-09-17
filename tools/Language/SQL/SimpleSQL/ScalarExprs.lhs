@@ -4,7 +4,6 @@ Tests for parsing scalar expressions
 >{-# LANGUAGE OverloadedStrings #-}
 > module Language.SQL.SimpleSQL.ScalarExprs (scalarExprTests) where
 
-> import Data.Semigroup ((<>))
 > import Language.SQL.SimpleSQL.TestTypes
 > import Language.SQL.SimpleSQL.Syntax
 > import Data.Text (unpack)
